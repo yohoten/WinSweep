@@ -1,0 +1,39 @@
+# ────────────── WinSweep .gitignore ──────────────
+
+# ============ Python 缓存 ============
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+
+# ============ 运行时数据（自动生成，勿入库） ============
+# data/ 由程序运行时自动创建：
+#   - w11d_last.txt            最近一次系统预装清理时间
+#   - win11debloat_backup/     Win11Debloat 配置自动备份（保留 5 份）
+data/
+
+# ============ 旧版本归档（历史备份，不进版本库） ============
+archive/
+
+# ============ 日志与临时文件 ============
+*.log
+*.tmp
+*.bak
+Thumbs.db
+Desktop.ini
+
+# ============ 编辑器 / IDE ============
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============ 虚拟环境（零依赖项目，如本地建 venv 请忽略） ============
+venv/
+.venv/
+env/
+ENV/
