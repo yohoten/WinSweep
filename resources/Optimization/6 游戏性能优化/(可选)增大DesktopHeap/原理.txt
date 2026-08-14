@@ -1,0 +1,4 @@
+增加非交互式桌面堆大小，以确保可以创建并同时运行足够数量的进程。
+
+详见：
+https://www.ibm.com/docs/en/iis/11.5?topic=cpews-configuring-windows-registry-increasing-noninteractive-desktop-heap-size 

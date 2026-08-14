@@ -1,0 +1,18 @@
+关闭USB控制器的中断裁决 数据将实时汇报给CPU
+对高回报率鼠标比较有效 会一定程度增加鼠标移动时候CPU占用
+
+你需要做的：
+
+
+
+首先 打开SetupRwX64.exe安装 安装后无需手动打开
+
+然后 将“XHCI-IMOD-Interval.ps1”复制到D盘根目录
+
+然后 win+r 输入shell:startup
+
+然后 将i“intMOD.cmd”复制到打开的这个目录里（你的启动目录）
+
+
+
+注意：如果没有D盘或者想移动“XHCI-IMOD-Interval.ps1”这个文件，直接修改启动目录内“intMOD.cmd”的内容使得地址对应得上

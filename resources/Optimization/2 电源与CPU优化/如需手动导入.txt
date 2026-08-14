@@ -1,0 +1,17 @@
+如果自动导不成功需手动导入：
+
+
+在NeonUltimate.pow上右键-复制文件地址
+
+打开管理员模式的powershell
+
+输入：
+
+powercfg -import 手动粘贴地址
+
+
+
+
+例如：powercfg -import "F:\May8_NeonBeta\2 电源与CPU优化\NeonUltimate.pow"
+
+还需要在控制面板-电源选项里面选到NeonUltimate电源计划

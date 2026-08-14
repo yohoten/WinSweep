@@ -1,0 +1,9 @@
+设备管理器是你电脑“设备管理器“的快捷方式
+查看-按连接列出设备后
+禁用高精度计时器，
+禁用N卡上方的HDAudio音频（如果不用显示器的音频）
+可选禁用最上方的一些枚举器
+
+DeviceCleanup.exe是清理未连接的无用设备
+上方Devices之后Select All
+然后Devices之后Remove Selected

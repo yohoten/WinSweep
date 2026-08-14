@@ -1,0 +1,48 @@
+# 下列所有整体复制到管理员模式的powershell再回车
+
+# List of services to disable
+$services = @(
+    # System Services
+    "Beep",                         # Beep
+    "diagsvc",                      # Diagnostic Policy Service
+    "DPS",                          # Diagnostic Policy Service
+    "WdiServiceHost",               # Diagnostic Service Host
+    "WdiSystemHost",                # Diagnostic System Host
+    "DiagTrack",                    # Connected User Experiences and Telemetry
+    "MapsBroker",                   # Downloaded Maps Manager
+    "autotimesvc",                  # Auto Time Zone Updater
+    "DusmSvc",                      # Data Usage
+    "tzautoupdate",                 # Auto Time Zone Updater
+    "WSearch",                      # Windows Search
+    "PcaSvc",                       # Program Compatibility Assistant Service
+    "DsmSvc",                       # Device Setup Manager
+    "WpcMonSvc",                    # Parental Controls
+    "SEMgrSvc",                     # Payments and NFC/SE Manager
+    "PimIndexMaintenanceSvc",       # Contact Data
+    "Sysmain",                      # Superfetch
+    "NvTelemetryContainer",		 # Nvidia Telemetry
+
+
+    # Hyper-V Services
+    "vmicguestinterface",           # Hyper-V Guest Service Interface
+    "vmicheartbeat",                # Hyper-V Heartbeat Service
+    "vmickvpexchange",              # Hyper-V Data Exchange Service
+    "vmicrdv",                      # Hyper-V Remote Desktop Virtualization Service
+    "vmicshutdown",                 # Hyper-V Guest Shutdown Service
+    "vmictimesync",                 # Hyper-V Time Synchronization Service
+    "vmicvmsession",                # Hyper-V PowerShell Direct Service
+    "vmicvss",                      # Hyper-V Volume Shadow Copy Requestor
+
+    # Other Services
+    "PhoneSvc",                     # Phone Service
+    "RetailDemo",                   # Retail Demo Service
+    "wercplsupport",                # Problem Reports and Solutions Control Panel Support
+    "FontCache",                    # Windows Font Cache Service
+    "FontCache3.0.0.0"              # Windows Presentation Foundation Font Cache 3.0.0.0
+)
+
+# Loop through each service and disable it
+foreach ($service in $services) {
+    Set-Service -Name $service -StartupType Disabled -ErrorAction SilentlyContinue
+    & sc.exe config $service error= ignore
+}

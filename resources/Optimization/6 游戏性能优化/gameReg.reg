@@ -1,0 +1,293 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\mouclass\Parameters]
+"MouseDataQueueSize"=dword:00000020
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\kbdclass\Parameters]
+"KeyboardDataQueueSize"=dword:00000020
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\DXGKrnl\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NDIS\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Usbxhci\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\USBHUB3\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\mouhid\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\kbdhid\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\usbhub\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Usb\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Audiosrv\Parameters]
+"ThreadPriority"=dword:0000001f
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\AudioEndpointBuilder\Parameters]
+"ThreadPriority"=dword:0000001f
+
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Usb]
+"DisableSelectiveSuspend"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Enum\USB]
+"AllowIdleIrpInD3"=dword:00000000
+"EnhancedPowerManagementEnabled"=dword:00000000
+
+
+;DWM & Desktop
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows]
+"DesktopHeapLogging"=dword:00000000
+"DwmInputUsesIoCompletionPort"=dword:00000000
+"EnableDwmInputProcessing"=dword:00000000
+"GDIProcessHandleQuota"=dword:0000ffff
+"USERPostMessageLimit"=dword:4650
+"USERProcessHandleQuota"=dword:4650
+"USERNestedWindowLimit"=dword:60
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Dwm]
+"AnimationAttributionEnabled"=dword:00000000
+"AnimationAttributionHashingEnabled"=dword:00000000
+"OneCoreNoBootDWM"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Dwm]
+"OverlayTestMode"=dword:00000005
+"ForceEffectMode"=-
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\DWM]
+"DisallowFlip3d"=dword:00000001
+"DisallowColorizationColorChanges"=dword:00000001
+"DisallowAnimations"=dword:00000001
+"DisallowComposition"=dword:00000001
+"DisableAccentGradient"=dword:00000001
+
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\DWM]
+"Composition"=dword:00000000
+"CompositionPolicy"=dword:00000000
+"EnableAeroPeek"=dword:00000000
+"EnableWindowColorization"=dword:00000000
+
+
+
+
+; Network
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters]
+"DisableTaskOffload"=dword:00000000
+"MaxNumRssCpus"=dword:00000001
+"MaximumReassemblyHeaders"=dword:0000ffff
+"TcpTimedWaitDelay"=dword:00000020
+"Tcp1323Opts"=dword:00000001
+"MaxUserPort"=dword:0000ffff
+"SackOpts"=dword:00000000
+"EnableConnectionRateLimiting"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NDIS\Parameters]
+"DefaultPnPCapabilities"=dword:00000024
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\AFD\Parameters]
+"FastSendDatagramThreshold"=dword:100000
+"DefaultSendWindow"=dword:100000
+"DefaultReceiveWindow"=dword:100000
+"DynamicSendBufferDisable"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\NDIS\Parameters]
+"RssBaseCpu"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\Psched]
+"TimerResolution"=dword:00000000
+"NonBestEffortLimit"=dword:00000000
+"MaxOutstandingSends"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\MSMQ\Parameters]
+"TCPNoDelay"=dword:00000001
+"TcpAckFrequency"=dword:00000001
+"TcpDelAckTicks"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Reliability]
+"TimeStampInterval"=dword:00000000
+"ShutdownReasonOn"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Winlogon]
+"CachedLogonsCount"=dword:00000000
+
+
+
+
+; GPU
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000]
+"RMHdcpKeyglobZero"=dword:00000001
+"EnableRuntimePowerManagement"=dword:00000000
+"PreferSystemMemoryContiguous"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0001]
+"RMHdcpKeyglobZero"=dword:00000001
+"EnableRuntimePowerManagement"=dword:00000000
+"PreferSystemMemoryContiguous"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0002]
+"RMHdcpKeyglobZero"=dword:00000001
+"EnableRuntimePowerManagement"=dword:00000000
+"PreferSystemMemoryContiguous"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\GraphicsDrivers]
+"DpiMapIommuContiguous"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm]
+"LogWarningEntries"=dword:00000000
+"LogPagingEntries"=dword:00000000
+"LogEventEntries"=dword:00000000
+"LogErrorEntries"=dword:00000000
+"DisableWriteCombining"=-
+
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\NVDisplay.ContainerLocalSystem\LocalSystem\NvcDispCorePlugin]
+"DisableLoad"=dword:00000001
+"LogFile"="-"
+"LogLevel"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\nvlddmkm\Global\NVTweak]
+"DisplayPowerSaving"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Scheduler]
+"EnablePreemption"=-
+
+
+
+; Game Priority
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile]
+"SystemResponsiveness"=dword:00000000
+"NetworkThrottlingIndex"=dword:0000000a
+"NoLazyMode"=dword:00000001
+"AlwaysOn"=dword:00000001
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Games]
+"Affinity"=dword:00000000
+"Background Only"="False"
+"Clock Rate"=dword:00002710
+"GPU Priority"=dword:00000008
+"Priority"=dword:00000006
+"Scheduling Category"="High"
+"SFIO Priority"="High"
+"Latency Sensitive"="True"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Audio]
+"Affinity"=dword:00000000
+"Clock Rate"=dword:00002710
+"GPU Priority"=dword:00000008
+"Priority"=dword:00000006
+"Scheduling Category"="Medium"
+"SFIO Priority"="Normal"
+"Latency Sensitive"="True"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Low Latency]
+"Affinity"=dword:00000000
+"Clock Rate"=dword:00002710
+"GPU Priority"=dword:00000008
+"Priority"=dword:00000008
+"Scheduling Category"="High"
+"SFIO Priority"="High"
+"Latency Sensitive"="True"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\DisplayPostProcessing]
+"Affinity"=dword:00000000
+"Clock Rate"=dword:00002710
+"GPU Priority"=dword:00000008
+"Priority"=dword:00000008
+"Scheduling Category"="High"
+"SFIO Priority"="High"
+"Latency Sensitive"="True"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile\Tasks\Window Manager]
+"Affinity"=dword:00000000
+"Clock Rate"=dword:00002710
+"GPU Priority"=dword:00000008
+"Priority"=dword:00000004
+"Scheduling Category"="Medium"
+"SFIO Priority"="Normal"
+"Latency Sensitive"="True"
+
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\StorPort]
+"TelemetryPerformanceEnabled"=dword:00000000
+"TelemetryErrorDataEnabled"=dword:00000000
+"TelemetryDeviceHealthEnabled"=dword:00000000
+
+
+
+; Disable Game Bar & Game DVR
+
+; Gamebar and Fullscreen
+[HKEY_CURRENT_USER\Software\Microsoft\GameBar] 
+"ShowStartupPanel"=dword:00000000 
+"GamePanelStartupTipIndex"=dword:00000003 
+"AllowAutoGameMode"=dword:00000000 
+"AutoGameModeEnabled"=dword:00000000 
+"UseNexusForGameBarEnabled"=dword:00000000
+
+[HKEY_CURRENT_USER\System\GameConfigStore] 
+"GameDVR_Enabled"=dword:00000000 
+"GameDVR_FSEBehaviorMode"=dword:00000002 
+"GameDVR_FSEBehavior"=dword:00000002 
+"GameDVR_HonorUserFSEBehaviorMode"=dword:00000001 
+"GameDVR_DXGIHonorFSEWindowsCompatible"=dword:00000001 
+"GameDVR_EFSEFeatureFlags"=dword:00000000 
+"GameDVR_DSEBehavior"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\PolicyManager\default\ApplicationManagement\AllowGameDVR]
+"value"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\GameDVR] 
+"AllowGameDVR"=dword:00000000
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\GameDVR] 
+"AppCaptureEnabled"=dword:00000000
+"AudioCaptureEnabled"=dword:00000000
+"CursorCaptureEnabled"=dword:00000000
+"LastGameActivity"=-
+
+
+
+; Game Mode ON (both 0 to off)
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\GameBar]
+"AllowAutoGameMode"=dword:00000001
+"AutoGameModeEnabled"=dword:00000001
+
+; Hardware Accelerated GPU Scheduling OFF (2 to on)
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\GraphicsDrivers]
+"HwSchMode"=dword:00000001
+
+; Disable VRROptimization, Enable WindowedOptimization
+
+[HKEY_CURRENT_USER\Software\Microsoft\DirectX\UserGpuPreferences]
+"DirectXUserGlobalSettings"="SwapEffectUpgradeEnable=1;VRROptimizeEnable=0;GpuPreference=2;"
+"C:\\Windows\\System32\\dwm.exe"="GpuPreference=2;"
+"C:\\Windows\\explorer.exe"="GpuPreference=2;"
+"C:\\Program Files\\DAUM\\PotPlayer\\PotPlayerMini64.exe"="GpuPreference=2;"
+"Microsoft.WindowsNotepad_8wekyb3d8bbwe!App"="GpuPreference=2;"
+
+[HKEY_CURRENT_USER\Software\Microsoft\DirectX\GraphicsSettings]
+"SwapEffectUpgradeCache"=dword:00000001
+
+
+
+

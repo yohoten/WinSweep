@@ -1,0 +1,20 @@
+Windows Registry Editor Version 5.00
+
+; Hardware Accelerated GPU off
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\GraphicsDrivers]
+"HwSchMode"=dword:00000001
+
+; Disable VRR and windowed optim
+[-HKEY_CURRENT_USER\Software\Microsoft\DirectX\UserGpuPreferences]
+
+[-HKEY_CURRENT_USER\Software\Microsoft\DirectX\GraphicsSettings]
+
+
+[-HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\GraphicsDrivers\Scheduler]
+
+; MPO Default
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Dwm]
+"OverlayTestMode"=-
+
+
+

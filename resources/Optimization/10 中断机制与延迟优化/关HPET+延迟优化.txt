@@ -1,0 +1,20 @@
+bcdedit /set useplatformclock no
+bcdedit /set disabledynamictick yes
+bcdedit /set useplatformtick no
+bcdedit /set tscsyncpolicy default
+
+bcdedit /set nx AlwaysOff
+bcdedit /set hypervisorlaunchtype off
+bcdedit /set hypervisoriommupolicy Disable
+bcdedit /set vsmlaunchtype Off
+bcdedit /set vm No
+bcdedit /set MSI Default
+bcdedit /set isolatedcontext No
+bcdedit /set tpmbootentropy ForceDisable
+bcdedit /set disableelamdrivers Yes
+bcdedit /set nointegritychecks on
+bcdedit /set forcelegacyplatform No
+bcdedit /event off
+bcdedit /ems off
+bcdedit /set ems off
+bcdedit /timeout 1

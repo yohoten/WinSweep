@@ -1,0 +1,36 @@
+Disable-MMAgent -mc
+Disable-MMAgent -PageCombining
+Disable-mmagent -ApplicationPreLaunch
+Disable-mmagent -ApplicationLaunchPrefetching
+Disable-mmagent -OperationAPI
+Set-MMAgent -MaxOperationAPIFiles 8192
+
+
+
+
+
+fsutil behavior set disableencryption 1
+
+fsutil behavior set disablefilemetadataoptimization 3
+
+fsutil behavior set disablecompression 1
+
+fsutil behavior set mftzone 8
+
+fsutil behavior set memoryusage 2
+
+fsutil behavior set quotanotify 4294967295
+
+fsutil behavior set disable8dot3 1
+
+fsutil behavior set disablelastaccess 1
+
+
+
+
+
+
+
+
+
+#注意：如果游戏需要NTFS加密f则使用：fsutil behavior set disableencryption 0

@@ -1,0 +1,26 @@
+如想给游戏或某应用设置高优先级并且开启大页表，可以直接用记事本打开“注册表优先级.reg”在末尾编辑
+用下列格式：
+
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\XXXXXX.exe]
+"UseLargePages"=dword:00000001
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\XXXXXX.exe\PerfOptions]
+"CpuPriorityClass"=dword:3
+"IoPriority"=dword:3
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+其中 XXXXXX.exe改成应用名字比如如cs2就是cs2.exe

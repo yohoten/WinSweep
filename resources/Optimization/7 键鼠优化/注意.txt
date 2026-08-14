@@ -1,0 +1,1 @@
+如果觉得键盘连击太快 可以用FilterKeysSetter.exe，先勾选Save to Registry再把RepeatRate调高（如调20ms就是1秒5次以此类推）

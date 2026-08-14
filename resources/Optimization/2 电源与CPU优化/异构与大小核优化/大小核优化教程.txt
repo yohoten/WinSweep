@@ -1,0 +1,16 @@
+#下面几行代码先输入管理员模式的powershell
+#然后需要在控制面板-电源选项里打开高级电源设置
+#有大小核心的 两个异类线程调度策略：首选高性能 
+#没有大小核心比如AMD：所有处理器
+
+
+
+
+
+powercfg -attributes SUB_PROCESSOR 619b7505-003b-4e82-b7a6-4dd29c300971 -ATTRIB_HIDE
+powercfg -attributes SUB_PROCESSOR 619b7505-003b-4e82-b7a6-4dd29c300972 -ATTRIB_HIDE
+powercfg -attributes SUB_PROCESSOR 3b04d4fd-1cc7-4f23-ab1c-d1337819c4bb -ATTRIB_HIDE
+powercfg -attributes SUB_PROCESSOR 93b8b6dc-0698-4d1c-9ee4-0644e900c85d -ATTRIB_HIDE
+powercfg -attributes SUB_PROCESSOR bae08b81-2d5e-4688-ad6a-13243356654b -ATTRIB_HIDE
+powercfg -attributes SUB_PROCESSOR 4d2b0152-7d5c-498b-88e2-34345392a2c5 -ATTRIB_HIDE
+powercfg -attributes SUB_PROCESSOR 7d24baa7-0b84-480f-840c-1b0743c00f5f -ATTRIB_HIDE

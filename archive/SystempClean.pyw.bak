@@ -1,0 +1,570 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+SysCleanTemp Pro - 系统垃圾清理工具 (.pyw)
+图形界面版本，双击运行无控制台窗口。
+需要管理员权限，如未提权会自动请求。
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+import threading
+import time
+import ctypes
+import tempfile
+from queue import Queue
+from tkinter import (
+    Tk, Frame, Label, Button, Text, Scrollbar, END, NORMAL, DISABLED,
+    Toplevel, Checkbutton, IntVar, messagebox, WORD, INSERT, VERTICAL
+)
+
+# ────────────── 颜色标签配置 ──────────────
+TAG_CONFIGS = {
+    "title":   {"foreground": "#00FFFF", "font": ("微软雅黑", 10, "bold")},
+    "info":    {"foreground": "#FFFFFF", "font": ("微软雅黑", 9)},
+    "success": {"foreground": "#00FF00", "font": ("微软雅黑", 9)},
+    "warning": {"foreground": "#FFFF00", "font": ("微软雅黑", 9)},
+    "error":   {"foreground": "#FF0000", "font": ("微软雅黑", 9)},
+    "gray":    {"foreground": "#808080", "font": ("微软雅黑", 9)},
+    "bold":    {"foreground": "#FFFFFF", "font": ("微软雅黑", 9, "bold")},
+    "cyan":    {"foreground": "#00FFFF", "font": ("微软雅黑", 10, "bold")},
+}
+
+# ────────────── 管理员权限检测与提权 ──────────────
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except Exception:
+        return False
+
+def run_as_admin():
+    """以管理员权限重新启动当前脚本"""
+    if not is_admin():
+        ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, f'"{__file__}"', None, 1
+        )
+        sys.exit(0)
+
+# ────────────── 清理功能实现 ──────────────
+# 许多操作需要管理员权限，已确保提权。
+
+def clean_temp_files(log):
+    """清理系统根目录下的临时文件 (C:\*.tmp 等)"""
+    system_drive = os.environ.get("SystemDrive", "C:")
+    patterns = ["*.tmp", "*._mp", "*.log", "*.gid", "*.chk", "*.old", "*.bak"]
+    for pattern in patterns:
+        try:
+            # 使用 cmd 的 del 命令保证删除隐藏/系统文件
+            cmd = f'del /f /s /q "{system_drive}\\{pattern}" >nul 2>&1'
+            subprocess.run(cmd, shell=True, check=False)
+        except Exception:
+            pass
+    log("info", "[清理] 系统临时文件完成")
+
+def clean_windows_temp(log):
+    """清理 Windows 临时目录"""
+    windir = os.environ.get("WINDIR", "C:\\Windows")
+    temp_dir = os.path.join(windir, "temp")
+    try:
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        os.makedirs(temp_dir, exist_ok=True)
+    except Exception:
+        pass
+    log("info", "[清理] Windows 临时目录完成")
+
+def clean_user_temp(log):
+    """清理用户临时文件"""
+    temp_dir = tempfile.gettempdir()
+    try:
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        os.makedirs(temp_dir, exist_ok=True)
+    except Exception:
+        pass
+    log("info", "[清理] 用户临时文件完成")
+
+def clean_recycle_bin(log):
+    """清空回收站"""
+    try:
+        subprocess.run(
+            ["powershell", "-Command", "Clear-RecycleBin -Force -ErrorAction SilentlyContinue"],
+            capture_output=True, check=False
+        )
+        log("success", "  回收站已清空")
+    except Exception:
+        # 备用方法
+        system_drive = os.environ.get("SystemDrive", "C:")
+        recycle_path = os.path.join(system_drive + "\\", '$Recycle.Bin')
+        try:
+            if os.path.exists(recycle_path):
+                shutil.rmtree(recycle_path, ignore_errors=True)
+                log("success", "  回收站已清空（备用方法）")
+        except Exception:
+            log("warning", "  回收站清理失败")
+
+def clean_thumb_cache(log):
+    """清理缩略图缓存"""
+    userprofile = os.environ.get("USERPROFILE", "")
+    cache_path = os.path.join(
+        userprofile, "AppData", "Local", "Microsoft", "Windows", "Explorer"
+    )
+    try:
+        for file in os.listdir(cache_path):
+            if file.endswith(".db"):
+                os.remove(os.path.join(cache_path, file))
+    except Exception:
+        pass
+    log("info", "[清理] 缩略图缓存完成")
+
+def clean_dns_cache(log):
+    """刷新 DNS 缓存"""
+    subprocess.run("ipconfig /flushdns", shell=True, capture_output=True)
+    log("info", "[清理] DNS 缓存已刷新")
+
+def clean_error_reports(log):
+    """清理 Windows 错误报告"""
+    paths = [
+        os.path.join(os.environ.get("SystemDrive", "C:"), "ProgramData", "Microsoft", "Windows", "WER", "ReportArchive"),
+        os.path.join(os.environ.get("SystemDrive", "C:"), "ProgramData", "Microsoft", "Windows", "WER", "ReportQueue"),
+        os.path.join(os.environ.get("USERPROFILE", ""), "AppData", "Local", "Microsoft", "Windows", "WER"),
+    ]
+    for p in paths:
+        try:
+            if os.path.exists(p):
+                shutil.rmtree(p, ignore_errors=True)
+        except Exception:
+            pass
+    log("info", "[清理] Windows 错误报告完成")
+
+def clean_memory_dump(log):
+    """清理内存转储文件"""
+    system_drive = os.environ.get("SystemDrive", "C:")
+    try:
+        for root, dirs, files in os.walk(system_drive + "\\"):
+            for f in files:
+                if f.endswith(".dmp"):
+                    os.remove(os.path.join(root, f))
+            if "minidump" in [d.lower() for d in dirs]:
+                shutil.rmtree(os.path.join(root, "minidump"), ignore_errors=True)
+    except Exception:
+        pass
+    log("info", "[清理] 内存转储文件完成")
+
+def check_old_windows(log):
+    """检查 Windows.old 目录"""
+    system_drive = os.environ.get("SystemDrive", "C:")
+    old_path = os.path.join(system_drive, "Windows.old")
+    if os.path.exists(old_path):
+        log("warning", "  发现 Windows.old 目录（约 10-30GB），如需删除请使用“磁盘清理”工具")
+    else:
+        log("info", "  未发现 Windows.old 目录")
+
+def clean_software_dist(log):
+    """清理 Windows 更新缓存"""
+    # 停止服务
+    subprocess.run("net stop wuauserv", shell=True, capture_output=True)
+    subprocess.run("net stop bits", shell=True, capture_output=True)
+    windir = os.environ.get("WINDIR", "C:\\Windows")
+    download_dir = os.path.join(windir, "SoftwareDistribution", "Download")
+    try:
+        if os.path.exists(download_dir):
+            shutil.rmtree(download_dir, ignore_errors=True)
+    except Exception:
+        pass
+    # 重启服务
+    subprocess.run("net start wuauserv", shell=True, capture_output=True)
+    subprocess.run("net start bits", shell=True, capture_output=True)
+    log("info", "[清理] Windows 更新缓存完成")
+
+def clean_browser_cache(log):
+    """清理主流浏览器缓存"""
+    userprofile = os.environ.get("USERPROFILE", "")
+    paths = [
+        os.path.join(userprofile, "AppData", "Local", "Microsoft", "Edge", "User Data", "Default", "Cache"),
+        os.path.join(userprofile, "AppData", "Local", "Google", "Chrome", "User Data", "Default", "Cache"),
+        os.path.join(userprofile, "AppData", "Local", "Microsoft", "Windows", "INetCache"),
+        os.path.join(userprofile, "AppData", "Local", "Microsoft", "Internet Explorer"),
+    ]
+    for p in paths:
+        try:
+            if os.path.exists(p):
+                if os.path.isdir(p):
+                    shutil.rmtree(p, ignore_errors=True)
+                else:
+                    os.remove(p)
+        except Exception:
+            pass
+    log("info", "[清理] 浏览器缓存完成")
+
+def clean_prefetch(log):
+    """清理预读取文件"""
+    windir = os.environ.get("WINDIR", "C:\\Windows")
+    prefetch_path = os.path.join(windir, "prefetch")
+    try:
+        if os.path.exists(prefetch_path):
+            for f in os.listdir(prefetch_path):
+                file_path = os.path.join(prefetch_path, f)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+    except Exception:
+        pass
+    log("info", "[清理] 预读取文件完成")
+
+def clean_recent_docs(log):
+    """清理最近文档记录"""
+    userprofile = os.environ.get("USERPROFILE", "")
+    paths = [
+        os.path.join(userprofile, "AppData", "Roaming", "Microsoft", "Windows", "Recent"),
+        os.path.join(userprofile, "Recent"),
+    ]
+    for p in paths:
+        try:
+            if os.path.exists(p):
+                shutil.rmtree(p, ignore_errors=True)
+        except Exception:
+            pass
+    log("info", "[清理] 最近文档记录完成")
+
+def clean_clipboard(log):
+    """清空剪贴板"""
+    try:
+        subprocess.run(
+            ["powershell", "-Command", "Set-Clipboard ''"],
+            capture_output=True, check=False
+        )
+        log("info", "[清理] 剪贴板已清空")
+    except Exception:
+        log("warning", "  剪贴板清空失败")
+
+def clean_font_cache(log):
+    """清理字体缓存"""
+    subprocess.run("net stop FontCache", shell=True, capture_output=True)
+    windir = os.environ.get("WINDIR", "C:\\Windows")
+    cache_dir = os.path.join(windir, "ServiceProfiles", "LocalService", "AppData", "Local", "FontCache")
+    try:
+        if os.path.exists(cache_dir):
+            shutil.rmtree(cache_dir, ignore_errors=True)
+    except Exception:
+        pass
+    subprocess.run("net start FontCache", shell=True, capture_output=True)
+    log("info", "[清理] 字体缓存完成")
+
+def start_disk_cleanup(log):
+    """启动磁盘清理工具"""
+    subprocess.Popen("cleanmgr.exe")
+    log("info", "[调用] 已打开磁盘清理工具")
+
+def run_dism_clean(log):
+    """运行 DISM 组件清理"""
+    log("warning", "  此操作需要较长时间，请耐心等待...")
+    result = subprocess.run(
+        "dism /online /cleanup-image /startcomponentcleanup /quiet",
+        shell=True, capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        log("success", "  DISM 组件清理完成")
+    else:
+        log("error", f"  DISM 清理失败: {result.stderr}")
+
+def get_disk_space():
+    """获取磁盘空间信息字符串"""
+    system_drive = os.environ.get("SystemDrive", "C:")
+    try:
+        total, used, free = shutil.disk_usage(system_drive + "\\")
+        gb = 1024 ** 3
+        used_gb = used / gb
+        free_gb = free / gb
+        total_gb = total / gb
+        pct_free = (free / total) * 100
+        info = (
+            f"  驱动器: {system_drive}\\\n"
+            f"  总大小: {total_gb:.1f} GB\n"
+            f"  已用:   {used_gb:.1f} GB\n"
+            f"  可用:   {free_gb:.1f} GB  ({pct_free:.1f}% 可用)"
+        )
+        # 检查 Windows.old
+        old_path = os.path.join(system_drive, "Windows.old")
+        if os.path.exists(old_path):
+            info += "\n  ⚠ 发现 Windows.old 备份目录（可能占 10-30GB）\n     请使用“磁盘清理”→“清理系统文件”删除"
+        return info
+    except Exception:
+        return "无法获取磁盘信息"
+
+# ────────────── GUI 应用程序 ──────────────
+class SysCleanTempApp:
+    def __init__(self):
+        # 先确保管理员权限
+        run_as_admin()
+
+        self.root = Tk()
+        self.root.title("SysCleanTemp Pro - 系统垃圾清理工具")
+        self.root.geometry("680x520")
+        self.root.resizable(True, True)
+
+        # 消息队列，用于线程安全更新输出
+        self.queue = Queue()
+
+        # 构建界面
+        self.create_widgets()
+
+        # 定期检查队列更新日志
+        self.root.after(100, self.process_queue)
+
+        # 启动时显示磁盘信息
+        self.root.after(200, self.show_disk_info_on_start)
+
+        self.root.mainloop()
+
+    def create_widgets(self):
+        # 标题
+        title_frame = Frame(self.root, bg="#1E1E1E")
+        title_frame.pack(fill="x", padx=10, pady=(10, 0))
+        Label(
+            title_frame,
+            text="╔════════════════════════════════════════╗\n"
+                 "║      SysCleanTemp Pro  v2.0           ║\n"
+                 "║      系统垃圾文件清理工具              ║\n"
+                 "╚════════════════════════════════════════╝",
+            fg="#00FFFF", bg="#1E1E1E", font=("Consolas", 10, "bold"),
+            justify="left"
+        ).pack(anchor="w")
+
+        # 当前时间和管理员状态
+        info_frame = Frame(self.root, bg="#1E1E1E")
+        info_frame.pack(fill="x", padx=10, pady=5)
+        self.time_label = Label(info_frame, text="", fg="#808080", bg="#1E1E1E")
+        self.time_label.pack(side="left")
+        self.admin_label = Label(info_frame, text="管理员模式: 已启用" if is_admin() else "管理员模式: 未启用",
+                                 fg="#00FF00", bg="#1E1E1E")
+        self.admin_label.pack(side="right")
+
+        # 输出文本框（带滚动条）
+        output_frame = Frame(self.root, bg="#1E1E1E")
+        output_frame.pack(fill="both", expand=True, padx=10, pady=5)
+        self.output_text = Text(
+            output_frame, bg="#1E1E1E", fg="#FFFFFF", insertbackground="white",
+            wrap=WORD, state=DISABLED, font=("微软雅黑", 9)
+        )
+        scrollbar = Scrollbar(output_frame, orient=VERTICAL, command=self.output_text.yview)
+        self.output_text.configure(yscrollcommand=scrollbar.set)
+        self.output_text.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # 配置文本标签样式
+        for tag, config in TAG_CONFIGS.items():
+            self.output_text.tag_configure(tag, **config)
+
+        # 按钮区域
+        btn_frame = Frame(self.root, bg="#1E1E1E")
+        btn_frame.pack(fill="x", padx=10, pady=10)
+
+        Button(btn_frame, text="快速清理", command=self.quick_clean,
+               bg="#2D2D2D", fg="white", width=12, height=2).pack(side="left", padx=5)
+        Button(btn_frame, text="深度清理", command=self.deep_clean,
+               bg="#2D2D2D", fg="white", width=12, height=2).pack(side="left", padx=5)
+        Button(btn_frame, text="自定义清理", command=self.custom_clean,
+               bg="#2D2D2D", fg="white", width=12, height=2).pack(side="left", padx=5)
+        Button(btn_frame, text="系统工具", command=self.tools_menu,
+               bg="#2D2D2D", fg="white", width=12, height=2).pack(side="left", padx=5)
+        Button(btn_frame, text="磁盘空间", command=self.show_disk_space,
+               bg="#2D2D2D", fg="white", width=12, height=2).pack(side="left", padx=5)
+        Button(btn_frame, text="退出", command=self.root.quit,
+               bg="#8B0000", fg="white", width=12, height=2).pack(side="left", padx=5)
+
+    def log(self, tag, message):
+        """将日志消息放入队列，主线程定时取出更新文本框"""
+        self.queue.put((tag, message))
+
+    def process_queue(self):
+        """处理队列中的日志消息，更新输出框"""
+        while not self.queue.empty():
+            tag, message = self.queue.get()
+            self.output_text.configure(state=NORMAL)
+            self.output_text.insert(END, message + "\n", tag)
+            self.output_text.see(END)
+            self.output_text.configure(state=DISABLED)
+        self.root.after(100, self.process_queue)
+
+    def update_time(self):
+        """刷新当前时间"""
+        now = time.strftime("%Y-%m-%d %H:%M:%S")
+        self.time_label.config(text=f"当前时间: {now}")
+        self.root.after(1000, self.update_time)
+
+    def show_disk_info_on_start(self):
+        """启动时显示磁盘信息"""
+        self.update_time()
+        info = get_disk_space()
+        self.log("gray", info)
+
+    def run_in_thread(self, target, *args):
+        """在新线程中执行目标函数，避免界面冻结"""
+        thread = threading.Thread(target=target, args=args, daemon=True)
+        thread.start()
+
+    # ────────────── 清理任务组合 ──────────────
+    def quick_clean(self):
+        """快速清理"""
+        def task():
+            self.log("cyan", "━━━━━━ 快速清理模式 ━━━━━━")
+            for func in [
+                clean_temp_files, clean_windows_temp, clean_user_temp,
+                clean_recycle_bin, clean_browser_cache, clean_recent_docs,
+                clean_prefetch, clean_software_dist
+            ]:
+                func(self.log)
+            self.log("success", "快速清理完成！")
+        self.run_in_thread(task)
+
+    def deep_clean(self):
+        """深度清理"""
+        def task():
+            self.log("cyan", "━━━━━━ 深度清理模式 ━━━━━━")
+            self.log("warning", "  注意：深度清理将清除更多系统缓存，可能需要更长时间")
+            # 快速清理 8 项 + 额外 7 项
+            for func in [
+                clean_temp_files, clean_windows_temp, clean_user_temp,
+                clean_recycle_bin, clean_browser_cache, clean_recent_docs,
+                clean_prefetch, clean_software_dist,
+                clean_thumb_cache, clean_dns_cache, clean_error_reports,
+                clean_memory_dump, clean_clipboard, clean_font_cache,
+                check_old_windows
+            ]:
+                func(self.log)
+            self.log("success", "深度清理完成！")
+        self.run_in_thread(task)
+
+    def custom_clean(self):
+        """打开自定义选择窗口"""
+        win = Toplevel(self.root)
+        win.title("自定义清理 - 选择项目")
+        win.geometry("350x460")
+        win.configure(bg="#1E1E1E")
+
+        # 复选框列表
+        options = [
+            ("系统临时文件 (*.tmp/*.log/*.chk)", "a"),
+            ("Windows 临时目录", "b"),
+            ("用户临时文件", "c"),
+            ("回收站", "d"),
+            ("浏览器缓存", "e"),
+            ("最近文档记录", "f"),
+            ("预读取文件 (Prefetch)", "g"),
+            ("Windows 更新缓存", "h"),
+            ("缩略图缓存", "i"),
+            ("DNS 缓存", "j"),
+            ("Windows 错误报告", "k"),
+            ("内存转储文件 (.dmp)", "l"),
+            ("剪贴板", "m"),
+            ("字体缓存", "n"),
+        ]
+        vars_dict = {}
+        for text, key in options:
+            var = IntVar()
+            cb = Checkbutton(win, text=text, variable=var,
+                             fg="white", bg="#1E1E1E", selectcolor="#1E1E1E",
+                             activebackground="#2D2D2D", activeforeground="white")
+            cb.pack(anchor="w", padx=20, pady=2)
+            vars_dict[key] = var
+
+        # 全选/取消
+        def select_all():
+            for var in vars_dict.values():
+                var.set(1)
+        def deselect_all():
+            for var in vars_dict.values():
+                var.set(0)
+
+        btn_frame = Frame(win, bg="#1E1E1E")
+        btn_frame.pack(pady=5)
+        Button(btn_frame, text="全选", command=select_all, bg="#2D2D2D", fg="white").pack(side="left", padx=5)
+        Button(btn_frame, text="取消全选", command=deselect_all, bg="#2D2D2D", fg="white").pack(side="left", padx=5)
+
+        def execute():
+            selected_keys = [k for k, v in vars_dict.items() if v.get() == 1]
+            if not selected_keys:
+                messagebox.showinfo("提示", "未选择任何项目")
+                return
+            win.destroy()
+            # 执行选中的清理
+            key_to_func = {
+                "a": clean_temp_files,
+                "b": clean_windows_temp,
+                "c": clean_user_temp,
+                "d": clean_recycle_bin,
+                "e": clean_browser_cache,
+                "f": clean_recent_docs,
+                "g": clean_prefetch,
+                "h": clean_software_dist,
+                "i": clean_thumb_cache,
+                "j": clean_dns_cache,
+                "k": clean_error_reports,
+                "l": clean_memory_dump,
+                "m": clean_clipboard,
+                "n": clean_font_cache,
+            }
+            def task():
+                self.log("cyan", "━━━━━━ 正在清理选定项目... ━━━━━━")
+                for k in selected_keys:
+                    if k in key_to_func:
+                        key_to_func[k](self.log)
+                self.log("success", "自定义清理完成！")
+            self.run_in_thread(task)
+
+        Button(win, text="开始清理", command=execute,
+               bg="#006400", fg="white", width=20, height=2).pack(pady=10)
+        Button(win, text="返回", command=win.destroy,
+               bg="#2D2D2D", fg="white", width=20, height=2).pack()
+
+    def tools_menu(self):
+        """系统工具弹出菜单"""
+        win = Toplevel(self.root)
+        win.title("系统工具")
+        win.geometry("300x250")
+        win.configure(bg="#1E1E1E")
+
+        Button(win, text="打开磁盘清理工具 (cleanmgr)",
+               command=lambda: start_disk_cleanup(self.log),
+               bg="#2D2D2D", fg="white", width=30, height=2).pack(pady=5)
+        Button(win, text="DISM 组件清理 (WinSxS)",
+               command=lambda: self.run_in_thread(run_dism_clean, self.log),
+               bg="#2D2D2D", fg="white", width=30, height=2).pack(pady=5)
+        Button(win, text="系统文件检查 (sfc /scannow)",
+               command=lambda: self.run_in_thread(self.run_sfc),
+               bg="#2D2D2D", fg="white", width=30, height=2).pack(pady=5)
+        Button(win, text="检查磁盘错误 (chkdsk /f)",
+               command=self.run_chkdsk,
+               bg="#2D2D2D", fg="white", width=30, height=2).pack(pady=5)
+        Button(win, text="关闭", command=win.destroy,
+               bg="#8B0000", fg="white", width=15, height=2).pack(pady=10)
+
+    def run_sfc(self):
+        """运行 sfc /scannow"""
+        self.log("info", "[调用] 系统文件检查... 此操作可能需要 15-30 分钟")
+        result = subprocess.run("sfc /scannow", shell=True, capture_output=True, text=True)
+        self.log("success", "系统文件检查完成")
+        # 可以输出最后几行结果
+        lines = result.stdout.splitlines()[-5:]
+        for line in lines:
+            self.log("gray", line)
+
+    def run_chkdsk(self):
+        """检查磁盘错误（提示将在下次重启执行）"""
+        system_drive = os.environ.get("SystemDrive", "C:")
+        if messagebox.askyesno("确认", "磁盘检查将在下次重启时执行。是否继续？"):
+            subprocess.Popen(f"chkdsk {system_drive} /f", shell=True)
+            self.log("warning", "  磁盘检查已安排，将在系统重启时执行")
+
+    def show_disk_space(self):
+        """单独显示磁盘空间"""
+        info = get_disk_space()
+        self.log("cyan", "━━━━━━ 磁盘空间信息 ━━━━━━")
+        self.log("gray", info)
+
+# ────────────── 程序入口 ──────────────
+if __name__ == "__main__":
+    # 如果是 .pyw 运行，不会有控制台，但 tkinter 会创建窗口
+    app = SysCleanTempApp()

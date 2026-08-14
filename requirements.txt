@@ -1,0 +1,19 @@
+# ---- 运行时环境要求 ----
+# Python >= 3.8（官方 python.org 安装包默认自带 tkinter）
+# 操作系统: Windows 10 / 11（依赖 ctypes.windll 进行 UAC 提权与 DPI 适配，
+#            并调用 powershell / reg / dism / sfc / chkdsk / cleanmgr / net 等系统命令）
+# 权限: 管理员权限（程序启动时自动请求 UAC）
+
+# ---- 使用的标准库 ----
+# tkinter          GUI 界面（随 Python 官方安装包自带，无需额外安装）
+# os / sys / glob  路径与文件操作
+# shutil / stat    文件清理与只读属性处理
+# subprocess       调用系统命令（powershell / reg / dism / sfc / chkdsk 等）
+# threading        后台线程执行清理任务，避免界面卡顿
+# queue            线程间日志消息队列
+# time             时间戳与磁盘信息刷新
+# ctypes           UAC 提权、管理员检测、DPI 适配
+# tempfile         临时文件（Win11Debloat GUI 错误日志）
+
+# ---- 可选（非必需）----
+# icon.ico         自定义窗口图标；缺省使用内置逐像素绘制的图标
