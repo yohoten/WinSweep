@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SysCleanTemp Pro v3.1 - 系统垃圾清理工具 (.pyw)
+WinSweep v3.1 - 系统垃圾清理工具 (.pyw)
 图形界面版本，双击运行无控制台窗口。
 需要管理员权限，如未提权会自动请求。
 
@@ -758,7 +758,7 @@ class SysCleanTempApp:
         run_as_admin()
 
         self.root = tk.Tk()
-        self.root.title("SysCleanTemp Pro - 系统垃圾清理工具")
+        self.root.title("WinSweep - 系统垃圾清理工具")
         self.root.configure(bg=BG)
         self._size_to_screen()
         self._set_icon()
@@ -878,7 +878,7 @@ class SysCleanTempApp:
         header = tk.Frame(self.root, bg=BG2)
         header.pack(fill="x", padx=10, pady=(10, 0))
         tk.Label(
-            header, text="🧹  SysCleanTemp Pro", fg=ACCENT, bg=BG2,
+            header, text="🧹  WinSweep", fg=ACCENT, bg=BG2,
             font=("微软雅黑", 15, "bold"),
         ).pack(side="left", padx=(12, 0), pady=10)
         tk.Label(
@@ -1080,7 +1080,7 @@ class SysCleanTempApp:
 
     def show_disk_info_on_start(self):
         self.update_time()
-        self.log("cyan", "━━━━━━ SysCleanTemp Pro v3.1 ━━━━━━")
+        self.log("cyan", "━━━━━━ WinSweep v3.1 ━━━━━━")
         self.log("gray", get_disk_space())
         last = self._last_w11d_time()
         if last:
