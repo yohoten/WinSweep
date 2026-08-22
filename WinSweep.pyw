@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WinSweep v3.1 - 系统垃圾清理工具 (.pyw)
+WinSweep v3.3 - 系统垃圾清理工具 (.pyw)
 图形界面版本，双击运行无控制台窗口。
 需要管理员权限，如未提权会自动请求。
 
@@ -26,6 +26,25 @@ v3.1 更新：
     修复硬编码路径，每项标注危险等级（低/中/高危）并在执行确认框强化提示
   * UI 优化：主按钮按「清理/系统」分组 + 悬停提示，日志区清空/复制按钮，
     磁盘容量可视化条，进度百分比，F5/Ctrl+L/Ctrl+C 快捷键，执行期间自动禁用按钮
+
+v3.3 更新（UI 细节优化）：
+  * 颜色系统扩充：新增 BG4 / FG_DIM2 / ACCENT_DIM / SUCCESS_BG，层次更分明
+  * ToolTip 延迟出现（400ms）：快速划过按钮不再乱弹；外层 Frame 模拟边框感
+  * make_button 禁用态：hover 绑定检测 state，禁用时不触发加亮；disabledforeground 灰化
+  * 品牌栏：右侧加 F5 / Ctrl+L / Ctrl+C 快捷键胶囊徽标（悬停显示说明）；底部 1px 细分隔线
+  * 信息栏：timestamp 字号缩小为 FONT_S；管理员状态改为圆点 + 精简文字，悬停显示详情；
+    磁盘条收窄为 6px 高度，两端圆头模拟圆角，颜色阈值细化（<80% 绿 / <92% 黄 / ≥92% 红）
+  * 日志区：外层加 1px 边框；标题栏左侧增蓝色竖线装饰；标题栏底部 1px 细线；
+    timestamp 与内容分两段渲染（灰色小字 ts tag + 正文 tag），层次更清晰；
+    spacing1=2 / spacing3=3 行间距微调，阅读更舒适；
+    success/error 改为 bold，重要结果一眼识别
+  * 按钮区："退出" lock=False，执行期间仍可点击；hint 文字改为 FONT_S / FG_DIM2
+  * 状态栏：进度条厚度升至 10px；完成（fraction=1）触发 % 标签 3 次闪烁反馈；
+    左侧新增 freed_label 常驻显示"↑ 释放 N MB"（由后台线程经 __freed__ 消息推送）；
+    进度百分比 0 时隐藏，> 0 才显示，更简洁
+  * ttk 滚动条：宽度收窄至 8px；hover 时 thumb 变亮，pressed 时变为 FG_DIM2
+  * _run_items：进度分母乘 0.98，为最终完成留出视觉缓冲；__freed__ 消息推送给主线程
+  * run_in_thread：启动时调 _stop_flash 避免残留闪烁；同步重置 freed_label
 """
 
 import os
@@ -79,28 +98,39 @@ except Exception:
 BG      = "#0F1115"   # 主背景
 BG2     = "#171A21"   # 面板背景
 BG3     = "#1E232C"   # 按钮 / 边框
+BG4     = "#252B36"   # hover 轻触 / 分隔线
 FG      = "#E8EAED"   # 主文字
 FG_DIM  = "#8B949E"   # 次要文字
+FG_DIM2 = "#555E6B"   # 更暗的辅助文字（timestamp、分隔）
 ACCENT  = "#00C896"   # 主色 薄荷绿
 ACCENT2 = "#3B82F6"   # 次色 蓝
+ACCENT_DIM = "#00876A" # ACCENT 暗版，用于按钮禁用态
 ORANGE  = "#F59E0B"   # 系统工具
 PURPLE  = "#A78BFA"   # 自定义
 WARN    = "#F5C542"   # 警告黄
 DANGER  = "#FF6B6B"   # 危险红
+SUCCESS_BG = "#0D2D24" # 成功消息行背景（轻底色高亮）
 
-# 日志文本标签配色
+# 日志文本标签配色（spacing1/3 在 Text 控件层设置，不在 tag 层）
 TAG_CONFIGS = {
-    "title":   {"foreground": ACCENT2, "font": ("微软雅黑", 10, "bold")},
-    "info":    {"foreground": FG,      "font": ("微软雅黑", 9)},
-    "success": {"foreground": ACCENT,  "font": ("微软雅黑", 9)},
-    "warning": {"foreground": WARN,    "font": ("微软雅黑", 9)},
-    "error":   {"foreground": DANGER,  "font": ("微软雅黑", 9)},
-    "gray":    {"foreground": FG_DIM,  "font": ("微软雅黑", 9)},
-    "bold":    {"foreground": FG,      "font": ("微软雅黑", 9, "bold")},
-    "cyan":    {"foreground": ACCENT2, "font": ("微软雅黑", 10, "bold")},
+    "title":   {"foreground": ACCENT2,  "font": ("微软雅黑", 10, "bold")},
+    "info":    {"foreground": FG,       "font": ("微软雅黑", 9)},
+    "success": {"foreground": ACCENT,   "font": ("微软雅黑", 9, "bold")},
+    "warning": {"foreground": WARN,     "font": ("微软雅黑", 9)},
+    "error":   {"foreground": DANGER,   "font": ("微软雅黑", 9, "bold")},
+    "gray":    {"foreground": FG_DIM2,  "font": ("微软雅黑", 9)},
+    "bold":    {"foreground": FG,       "font": ("微软雅黑", 9, "bold")},
+    "cyan":    {"foreground": ACCENT2,  "font": ("微软雅黑", 10, "bold")},
+    "ts":      {"foreground": FG_DIM2,  "font": ("微软雅黑", 8)},   # timestamp 专用
 }
-FONT_N = ("微软雅黑", 9)
-FONT_B = ("微软雅黑", 9, "bold")
+FONT_N  = ("微软雅黑", 9)
+FONT_B  = ("微软雅黑", 9, "bold")
+FONT_S  = ("微软雅黑", 8)       # 辅助小字
+FONT_T  = ("微软雅黑", 8)       # timestamp
+
+PROGRESSBAR_THICKNESS = 10      # 进度条厚度（px）
+DISK_BAR_H            = 6       # 磁盘容量条高度（px）
+TOOLTIP_DELAY_MS      = 400     # ToolTip 延迟出现（ms）
 
 MAX_LOG_LINES = 800   # 日志区最大行数，超过后截断前半，防止 Text 无限膨胀变卡
 QUEUE_POLL_MS  = 80   # 消息队列轮询间隔
@@ -138,45 +168,84 @@ def center(win, w, h):
 
 
 class ToolTip:
-    """简单悬停提示（零依赖，纯 Tk）"""
+    """悬停提示：延迟 TOOLTIP_DELAY_MS ms 后出现，避免快速划过时乱弹"""
     def __init__(self, widget, text):
         self.widget = widget
-        self.text = text
-        self.tip = None
-        widget.bind("<Enter>", self._enter, add="+")
-        widget.bind("<Leave>", self._leave, add="+")
+        self.text   = text
+        self.tip    = None
+        self._after_id = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._cancel,   add="+")
 
-    def _enter(self, e=None):
-        if self.tip is not None:
-            return
-        x = self.widget.winfo_rootx() + 12
-        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 4
-        self.tip = tk.Toplevel(self.widget)
-        self.tip.wm_overrideredirect(True)
-        self.tip.wm_geometry(f"+{x}+{y}")
-        self.tip.configure(bg="#2A2F3A")
-        tk.Label(self.tip, text=self.text, bg="#2A2F3A", fg=FG,
-                 font=("微软雅黑", 8), padx=8, pady=3).pack()
+    def _schedule(self, e=None):
+        self._cancel()
+        self._after_id = self.widget.after(TOOLTIP_DELAY_MS, self._show)
 
-    def _leave(self, e=None):
+    def _cancel(self, e=None):
+        if self._after_id is not None:
+            self.widget.after_cancel(self._after_id)
+            self._after_id = None
         if self.tip is not None:
             self.tip.destroy()
             self.tip = None
 
+    def _show(self):
+        if self.tip is not None:
+            return
+        x = self.widget.winfo_rootx() + 12
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 6
+        self.tip = tk.Toplevel(self.widget)
+        self.tip.wm_overrideredirect(True)
+        self.tip.wm_geometry(f"+{x}+{y}")
+        # 外层边框 Frame 模拟圆角感
+        border = tk.Frame(self.tip, bg=BG4, padx=1, pady=1)
+        border.pack()
+        tk.Label(
+            border, text=self.text, bg="#1E2330", fg=FG,
+            font=FONT_S, padx=9, pady=4,
+        ).pack()
 
-def make_button(parent, text, command, color, width=13, height=1, tooltip=None):
-    """统一样式的扁平按钮，带 hover 加亮、手型光标与可选悬停提示"""
+
+def make_button(parent, text, command, color, width=13, height=1, tooltip=None, padx=0, pady=0):
+    """统一样式的扁平按钮：
+    - hover 加亮 / 手型光标 / 可选 ToolTip（延迟出现）
+    - 禁用态自动变灰（disabledforeground 灰 + 禁用时 bg 不跟 hover）
+    """
+    _dim = lighten(color, -0.35) if color not in ("#2D3748", "#64748B") else "#1A2030"
     btn = tk.Button(
         parent, text=text, command=command, bg=color, fg="#FFFFFF",
         activebackground=lighten(color), activeforeground="#FFFFFF",
+        disabledforeground="#4A5568",
         relief="flat", bd=0, highlightthickness=0,
         width=width, height=height, cursor="hand2", font=FONT_B,
+        padx=padx, pady=pady,
     )
-    btn.bind("<Enter>", lambda e: btn.configure(bg=lighten(color)))
-    btn.bind("<Leave>", lambda e: btn.configure(bg=color))
+    btn.bind("<Enter>", lambda e: btn.configure(bg=lighten(color)) if str(btn["state"]) != "disabled" else None)
+    btn.bind("<Leave>", lambda e: btn.configure(bg=color)          if str(btn["state"]) != "disabled" else None)
     if tooltip:
         ToolTip(btn, tooltip)
     return btn
+
+
+def darken(color, amount=0.35):
+    """颜色压暗，用于禁用态背景"""
+    c = color.lstrip("#")
+    r, g, b = (int(c[i:i + 2], 16) for i in (0, 2, 4))
+    r = max(0, int(r * (1 - amount)))
+    g = max(0, int(g * (1 - amount)))
+    b = max(0, int(b * (1 - amount)))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _kb_badge(parent, key_text, tip_text=""):
+    """品牌栏右侧快捷键徽标：深色胶囊 + 可选 ToolTip"""
+    frame = tk.Frame(parent, bg=BG3, padx=6, pady=2)
+    frame.pack(side="left", padx=3, pady=6)
+    lbl = tk.Label(frame, text=key_text, bg=BG3, fg=FG_DIM, font=FONT_S)
+    lbl.pack()
+    if tip_text:
+        ToolTip(frame, tip_text)
+        ToolTip(lbl, tip_text)
 
 
 # ────────────── 管理员权限检测与提权 ──────────────
@@ -390,25 +459,63 @@ def clean_software_dist(log):
     log("info", "[清理] Windows 更新缓存完成")
 
 
+# ────────────── 浏览器候选列表（自动扫描已安装，动态清理） ──────────────
+# 每项：(显示名称, 相对 %LOCALAPPDATA% 或 %APPDATA% 的路径, 根环境变量)
+# 路径支持 glob 通配符（Firefox 多 Profile 场景）
+_BROWSER_CACHE_PATHS = [
+    ("Microsoft Edge",   r"Microsoft\Edge\User Data\Default\Cache",              "LOCALAPPDATA"),
+    ("Microsoft Edge",   r"Microsoft\Edge\User Data\Default\Code Cache",         "LOCALAPPDATA"),
+    ("Google Chrome",    r"Google\Chrome\User Data\Default\Cache",               "LOCALAPPDATA"),
+    ("Google Chrome",    r"Google\Chrome\User Data\Default\Code Cache",          "LOCALAPPDATA"),
+    ("Brave",            r"BraveSoftware\Brave-Browser\User Data\Default\Cache", "LOCALAPPDATA"),
+    ("Brave",            r"BraveSoftware\Brave-Browser\User Data\Default\Code Cache", "LOCALAPPDATA"),
+    ("Opera",            r"Opera Software\Opera Stable\Cache",                   "APPDATA"),
+    ("Opera GX",         r"Opera Software\Opera GX Stable\Cache",               "APPDATA"),
+    ("Vivaldi",          r"Vivaldi\User Data\Default\Cache",                     "LOCALAPPDATA"),
+    ("IE / INetCache",   r"Microsoft\Windows\INetCache",                         "LOCALAPPDATA"),
+    ("IE Legacy",        r"Microsoft\Internet Explorer",                         "LOCALAPPDATA"),
+]
+
+
+def _get_installed_browsers():
+    """扫描候选列表，返回实际存在的 (名称, 路径) 列表（去重路径）"""
+    found = []
+    seen = set()
+    local = os.environ.get("LOCALAPPDATA", "")
+    appdata = os.environ.get("APPDATA", "")
+    for name, rel, env in _BROWSER_CACHE_PATHS:
+        base = local if env == "LOCALAPPDATA" else appdata
+        full = os.path.join(base, rel)
+        if full in seen:
+            continue
+        if os.path.exists(full):
+            seen.add(full)
+            found.append((name, full))
+    return found
+
+
 def clean_browser_cache(log):
-    """清理主流浏览器缓存"""
-    userprofile = os.environ.get("USERPROFILE", "")
-    paths = [
-        os.path.join(userprofile, "AppData", "Local", "Microsoft", "Edge", "User Data", "Default", "Cache"),
-        os.path.join(userprofile, "AppData", "Local", "Google", "Chrome", "User Data", "Default", "Cache"),
-        os.path.join(userprofile, "AppData", "Local", "Microsoft", "Windows", "INetCache"),
-        os.path.join(userprofile, "AppData", "Local", "Microsoft", "Internet Explorer"),
-    ]
-    for p in paths:
+    """动态扫描并清理已安装浏览器的缓存目录"""
+    targets = _get_installed_browsers()
+    if not targets:
+        log("warning", "  未检测到已安装浏览器的缓存目录，跳过")
+        return
+    cleared, skipped = 0, 0
+    shown_names = set()
+    for name, path in targets:
+        if name not in shown_names:
+            log("info", f"    检测到浏览器：{name}")
+            shown_names.add(name)
         try:
-            if os.path.exists(p):
-                if os.path.isdir(p):
-                    shutil.rmtree(p, ignore_errors=True)
-                else:
-                    os.remove(p)
+            if os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+            elif os.path.isfile(path):
+                os.remove(path)
+            cleared += 1
         except Exception:
-            pass
-    log("info", "[清理] 浏览器缓存完成")
+            skipped += 1
+    log("info", f"[清理] 浏览器缓存完成（清理 {cleared} 个目录"
+               + (f"，{skipped} 个跳过（浏览器可能正在运行）" if skipped else "") + "）")
 
 
 def clean_prefetch(log):
@@ -492,6 +599,41 @@ def run_dism_clean(log):
         log("success", "  DISM 组件清理完成")
     else:
         log("error", f"  DISM 清理失败: {result.stderr}")
+
+
+def create_restore_point(log, description="WinSweep 操作前备份"):
+    """创建 Windows 系统还原点（需要管理员权限，且系统保护已对 C: 启用）。
+    返回 True 表示创建成功，False 表示失败。
+    """
+    log("info", f'[系统还原点] 正在创建还原点："{description}"...')
+    ps_cmd = (
+        f"Enable-ComputerRestore -Drive '$env:SystemDrive'; "
+        f"Checkpoint-Computer -Description '{description}' "
+        f"-RestorePointType 'MODIFY_SETTINGS'"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps_cmd],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode == 0:
+            log("success", '✔ 系统还原点创建成功，可在 "系统属性 -> 系统保护" 中查看')
+            return True
+        else:
+            err = (result.stderr or result.stdout or "").strip()
+            log("error", f"  还原点创建失败（退出码: {result.returncode}）")
+            if err:
+                for line in err.splitlines():
+                    if line.strip():
+                        log("error", f"  {line.strip()}")
+            log("warning", '  提示：若系统保护未开启，请手动在 "系统属性 -> 系统保护" 中启用后重试。')
+            return False
+    except subprocess.TimeoutExpired:
+        log("error", "  还原点创建超时（超过 2 分钟），请检查系统保护服务是否正常")
+        return False
+    except Exception as e:
+        log("error", f"  还原点创建异常: {e}")
+        return False
 
 
 def backup_w11d_config(log=None):
@@ -610,7 +752,9 @@ CLEAN_ITEMS = [
     {"key": "d", "icon": "🗑️", "name": "回收站",             "group": "缓存清理", "func": clean_recycle_bin},
     {"key": "e", "icon": "🌐", "name": "浏览器缓存",         "group": "缓存清理", "func": clean_browser_cache},
     {"key": "f", "icon": "📁", "name": "最近文档记录",       "group": "缓存清理", "func": clean_recent_docs},
-    {"key": "g", "icon": "⚡", "name": "预读取文件",          "group": "缓存清理", "func": clean_prefetch},
+    {"key": "g", "icon": "⚡", "name": "预读取文件 (可选)",    "group": "缓存清理", "func": clean_prefetch,
+     "optional": True, "danger": "low",
+     "tip": "⚠ 清理后首次冷启动应用/系统会稍慢，Windows 会自动重建。日常建议不勾选。"},
     {"key": "i", "icon": "🖼️", "name": "缩略图缓存",         "group": "缓存清理", "func": clean_thumb_cache},
     {"key": "j", "icon": "🌍", "name": "DNS 缓存",           "group": "缓存清理", "func": clean_dns_cache},
     {"key": "k", "icon": "📋", "name": "Windows 错误报告",   "group": "缓存清理", "func": clean_error_reports},
@@ -621,7 +765,7 @@ CLEAN_ITEMS = [
 ]
 CLEAN_BY_KEY = {it["key"]: it for it in CLEAN_ITEMS}
 
-QUICK_KEYS = ["a", "b", "c", "d", "e", "f", "g", "h"]   # 快速清理组合
+QUICK_KEYS = ["a", "b", "c", "d", "e", "f", "h"]   # 快速清理组合（g=预读取为可选项，已移出）
 # 深度清理 = 全部 14 项 + Windows.old 检查
 
 
@@ -857,19 +1001,28 @@ class SysCleanTempApp:
         return img
 
     def _setup_style(self):
-        """配置 ttk 主题（进度条配色）"""
+        """配置 ttk 主题（进度条 / 滚动条配色与尺寸）"""
         style = ttk.Style(self.root)
         try:
             style.theme_use("clam")
         except Exception:
             pass
         style.configure(
-            "TProgressbar", background=ACCENT, troughcolor=BG3,
-            bordercolor=BG, lightcolor=ACCENT, darkcolor=ACCENT, thickness=8,
+            "TProgressbar",
+            background=ACCENT, troughcolor=BG3,
+            bordercolor=BG, lightcolor=ACCENT, darkcolor=ACCENT,
+            thickness=PROGRESSBAR_THICKNESS,
         )
+        # 滚动条：收窄到 8px，hover 时 thumb 亮一档
         style.configure(
-            "Vertical.TScrollbar", background=BG3, troughcolor=BG,
-            bordercolor=BG, arrowcolor=FG_DIM,
+            "Vertical.TScrollbar",
+            background=BG3, troughcolor=BG2,
+            bordercolor=BG2, arrowcolor=FG_DIM2,
+            width=8, arrowsize=8,
+        )
+        style.map(
+            "Vertical.TScrollbar",
+            background=[("active", BG4), ("pressed", FG_DIM2)],
         )
 
     # ────────────── 界面搭建 ──────────────
@@ -877,56 +1030,90 @@ class SysCleanTempApp:
         # —— 品牌栏 ——
         header = tk.Frame(self.root, bg=BG2)
         header.pack(fill="x", padx=10, pady=(10, 0))
+
         tk.Label(
             header, text="🧹  WinSweep", fg=ACCENT, bg=BG2,
             font=("微软雅黑", 15, "bold"),
         ).pack(side="left", padx=(12, 0), pady=10)
         tk.Label(
-            header, text="系统垃圾文件清理工具  v3.1", fg=FG_DIM, bg=BG2,
+            header, text="系统垃圾文件清理工具  v3.3", fg=FG_DIM, bg=BG2,
             font=("微软雅黑", 9),
         ).pack(side="left", padx=(10, 0), pady=10)
 
+        # 右侧快捷键徽标组
+        shortcut_bar = tk.Frame(header, bg=BG2)
+        shortcut_bar.pack(side="right", padx=(0, 14))
+        for key, tip in [("F5", "刷新磁盘/时间"), ("Ctrl+L", "清空日志"), ("Ctrl+C", "复制日志")]:
+            _kb_badge(shortcut_bar, key, tip)
+
+        # 品牌栏底部细分隔线
+        tk.Frame(self.root, bg=BG3, height=1).pack(fill="x", padx=10)
+
         # —— 信息栏：时间 / 管理员状态 / 磁盘摘要 ——
         info_bar = tk.Frame(self.root, bg=BG)
-        info_bar.pack(fill="x", padx=14, pady=(8, 0))
-        self.time_label = tk.Label(info_bar, text="", fg=FG_DIM, bg=BG, font=FONT_N)
+        info_bar.pack(fill="x", padx=14, pady=(6, 0))
+        self.time_label = tk.Label(info_bar, text="", fg=FG_DIM2, bg=BG, font=FONT_S)
         self.time_label.pack(side="left")
+
+        # 管理员状态：实心圆点 + 文字
         admin_ok = is_admin()
+        _dot_color = ACCENT if admin_ok else WARN
+        _dot_text  = "●" if admin_ok else "●"
+        _admin_text = "管理员" if admin_ok else "非管理员"
+        admin_dot = tk.Label(info_bar, text=_dot_text, fg=_dot_color, bg=BG, font=FONT_S)
+        admin_dot.pack(side="left", padx=(16, 2))
         self.admin_label = tk.Label(
-            info_bar,
-            text="●  管理员模式：已启用" if admin_ok else "●  管理员模式：未启用",
-            fg=ACCENT if admin_ok else WARN, bg=BG, font=FONT_N,
+            info_bar, text=_admin_text,
+            fg=ACCENT if admin_ok else WARN, bg=BG, font=FONT_S,
         )
-        self.admin_label.pack(side="left", padx=(20, 0))
-        self.disk_label = tk.Label(info_bar, text="", fg=FG_DIM, bg=BG, font=FONT_N)
+        self.admin_label.pack(side="left")
+        ToolTip(admin_dot,  "以管理员身份运行（UAC 已提权）" if admin_ok else "未获得管理员权限，清理功能可能受限")
+        ToolTip(self.admin_label, "以管理员身份运行（UAC 已提权）" if admin_ok else "未获得管理员权限，清理功能可能受限")
+
+        # 右侧磁盘摘要 + 可视化条
+        self.disk_label = tk.Label(info_bar, text="", fg=FG_DIM2, bg=BG, font=FONT_S)
         self.disk_label.pack(side="right")
-        self.disk_canvas = tk.Canvas(info_bar, width=140, height=10,
-                                     bg=BG, highlightthickness=0)
-        self.disk_canvas.pack(side="right", padx=(8, 0), pady=2)
+        self.disk_canvas = tk.Canvas(
+            info_bar, width=120, height=DISK_BAR_H,
+            bg=BG, highlightthickness=0,
+        )
+        self.disk_canvas.pack(side="right", padx=(6, 4), pady=3)
 
         # —— 日志输出区（含工具按钮行） ——
-        output_panel = tk.Frame(self.root, bg=BG2)
+        output_panel = tk.Frame(self.root, bg=BG2, highlightbackground=BG3, highlightthickness=1)
         output_panel.pack(fill="both", expand=True, padx=10, pady=(8, 0))
+
+        # 日志标题栏
         log_tools = tk.Frame(output_panel, bg=BG2)
-        log_tools.pack(fill="x", pady=(2, 0))
+        log_tools.pack(fill="x", pady=(0, 0))
+        # 左侧：图标 + 标题
+        tk.Label(
+            log_tools, text="▌", fg=ACCENT2, bg=BG2, font=("微软雅黑", 11),
+        ).pack(side="left", padx=(6, 0), pady=(5, 3))
         tk.Label(
             log_tools, text="执行日志", fg=FG_DIM, bg=BG2,
             font=("微软雅黑", 8, "bold"),
-        ).pack(side="left", padx=(6, 0))
+        ).pack(side="left", padx=(2, 0), pady=(5, 3))
+        # 右侧：工具按钮
         make_button(log_tools, "🗑 清空", self.clear_log,
                     "#2D3748", width=6, height=1,
-                    tooltip="清空日志区内容").pack(side="right", padx=2, pady=1)
+                    tooltip="清空日志区  Ctrl+L").pack(side="right", padx=(2, 4), pady=3)
         make_button(log_tools, "📋 复制", self.copy_log,
                     "#2D3748", width=6, height=1,
-                    tooltip="复制全部日志到剪贴板").pack(side="right", padx=2, pady=1)
+                    tooltip="复制全部日志  Ctrl+C").pack(side="right", padx=2, pady=3)
+        # 标题栏底部细线
+        tk.Frame(output_panel, bg=BG3, height=1).pack(fill="x")
+
         text_frame = tk.Frame(output_panel, bg=BG2)
         text_frame.pack(fill="both", expand=True)
         self.output_text = tk.Text(
             text_frame, bg=BG2, fg=FG, insertbackground=FG,
             wrap="word", state=tk.DISABLED, font=FONT_N,
-            relief="flat", bd=0, highlightthickness=1,
-            highlightbackground=BG3, highlightcolor=ACCENT2,
-            padx=10, pady=8, spacing1=1, spacing3=1,
+            relief="flat", bd=0, highlightthickness=0,
+            padx=10, pady=6,
+            spacing1=2,   # 行前间距（px）
+            spacing2=0,   # 行内折行间距
+            spacing3=3,   # 行后间距（px）
         )
         scrollbar = ttk.Scrollbar(
             text_frame, orient="vertical", command=self.output_text.yview,
@@ -942,7 +1129,7 @@ class SysCleanTempApp:
         # —— 操作按钮区（按职责分组：清理 / 系统） ——
         btn_panel = tk.Frame(self.root, bg=BG)
         btn_panel.pack(fill="x", padx=10, pady=(10, 4))
-        self.action_buttons = []
+        self.action_buttons = []   # 执行期间会被禁用的按钮（不含退出）
 
         def _group(title, color):
             grp = tk.LabelFrame(
@@ -953,45 +1140,65 @@ class SysCleanTempApp:
             grp.pack(fill="x", padx=2, pady=(2, 4))
             return grp
 
-        def _abtn(parent, text, cmd, color, tip):
+        def _abtn(parent, text, cmd, color, tip, lock=True):
+            """lock=True 表示执行期间该按钮会被禁用"""
             b = make_button(parent, text, cmd, color, tooltip=tip)
             b.pack(side="left", padx=3, pady=4)
-            self.action_buttons.append(b)
+            if lock:
+                self.action_buttons.append(b)
             return b
 
         grp_clean = _group("🧹 清理", ACCENT)
-        _abtn(grp_clean, "⚡ 快速清理", self.quick_clean, ACCENT, "清理 8 项常用缓存（安全项）")
-        _abtn(grp_clean, "🚀 深度清理", self.deep_clean, ACCENT2, "清理全部 14 项 + 检查 Windows.old")
-        _abtn(grp_clean, "🎯 自定义清理", self.custom_clean, PURPLE, "勾选要清理的项目")
-        _abtn(grp_clean, "📦 系统预装清理", self.win11debloat_menu, "#8B5CF6", "移除 Win11 预装应用 / 系统优化")
+        _abtn(grp_clean, "⚡ 快速清理",   self.quick_clean,        ACCENT,    "一键清理 7 项常用缓存（安全项）")
+        _abtn(grp_clean, "🚀 深度清理",   self.deep_clean,         ACCENT2,   "清理全部 14 项 + 检查 Windows.old")
+        _abtn(grp_clean, "🎯 自定义清理", self.custom_clean,        PURPLE,    "勾选要清理的项目")
+        _abtn(grp_clean, "📦 系统预装清理", self.win11debloat_menu, "#8B5CF6", "移除 Win11 预装应用 / 隐私优化")
 
         grp_sys = _group("🛠 系统", ORANGE)
         _abtn(grp_sys, "🧰 系统优化", self.system_optimize_menu, "#06B6D4", "Neon 优化包：电源/游戏/键鼠/服务等")
-        _abtn(grp_sys, "💽 磁盘空间", self.show_disk_space, "#64748B", "查看磁盘空间详情")
-        _abtn(grp_sys, "🛠 系统工具", self.tools_menu, ORANGE, "DISM / SFC / chkdsk 等")
-        _abtn(grp_sys, "❌ 退出", self.root.quit, DANGER, "退出程序")
+        _abtn(grp_sys, "💽 磁盘空间", self.show_disk_space,       "#64748B", "查看磁盘空间详情")
+        _abtn(grp_sys, "🛠 系统工具", self.tools_menu,            ORANGE,    "DISM / SFC / chkdsk / 还原点")
+        # 退出按钮：lock=False，执行期间仍可点击
+        _abtn(grp_sys, "❌ 退出",    self.root.quit,              DANGER,    "退出程序", lock=False)
 
         hint = tk.Label(
-            btn_panel, text="清理区执行缓存清理；系统区为系统级操作（多需管理员确认）。",
-            fg=FG_DIM, bg=BG, font=("微软雅黑", 8), anchor="w",
+            btn_panel,
+            text="清理区执行缓存清理；系统区为系统级操作（多需管理员确认）。执行中按钮自动禁用。",
+            fg=FG_DIM2, bg=BG, font=FONT_S, anchor="w",
         )
         hint.pack(fill="x", padx=3, pady=(2, 0))
 
         # —— 底部状态栏 + 进度条 ——
         status_panel = tk.Frame(self.root, bg=BG2)
-        status_panel.pack(fill="x", side="bottom", padx=10, pady=(6, 10))
+        status_panel.pack(fill="x", side="bottom", padx=10, pady=(4, 10))
+
+        # 左：状态文字 + 释放空间提示
+        left_status = tk.Frame(status_panel, bg=BG2)
+        left_status.pack(side="left", fill="x", expand=True)
         self.status_label = tk.Label(
-            status_panel, text="就绪", fg=FG_DIM, bg=BG2,
+            left_status, text="就绪", fg=FG_DIM, bg=BG2,
             font=FONT_N, anchor="w",
         )
-        self.status_label.pack(side="left", padx=12, fill="x", expand=True, pady=4)
-        self.progress_label = tk.Label(
-            status_panel, text="0%", fg=FG_DIM, bg=BG2, font=FONT_N,
+        self.status_label.pack(side="left", padx=12, pady=4)
+        self.freed_label = tk.Label(
+            left_status, text="", fg=ACCENT, bg=BG2,
+            font=FONT_S, anchor="w",
         )
-        self.progress_label.pack(side="right", padx=(0, 4), pady=4)
-        self.progress = ttk.Progressbar(status_panel, style="TProgressbar",
-                                        length=200, mode="determinate")
-        self.progress.pack(side="right", padx=12, pady=4)
+        self.freed_label.pack(side="left", padx=(0, 8), pady=4)
+
+        # 右：百分比 + 进度条
+        self.progress_label = tk.Label(
+            status_panel, text="", fg=FG_DIM2, bg=BG2, font=FONT_S,
+        )
+        self.progress_label.pack(side="right", padx=(0, 6), pady=4)
+        self.progress = ttk.Progressbar(
+            status_panel, style="TProgressbar",
+            length=180, mode="determinate",
+        )
+        self.progress.pack(side="right", padx=(8, 4), pady=5)
+
+        self._flash_id  = None   # 完成态闪烁任务 ID
+        self._freed_bytes = 0    # 本次任务释放量（跨方法传递）
 
         # —— 键盘快捷键 ——
         self.root.bind("<F5>", lambda e: self.update_time())
@@ -1031,9 +1238,11 @@ class SysCleanTempApp:
         self.queue.put(("__status__", (text, min(max(fraction, 0.0), 1.0))))
 
     def _append_log(self, tag, message):
+        """将一条日志追加到文本区：timestamp 用独立灰色小字 tag，内容另接"""
         ts = time.strftime("%H:%M:%S")
         self.output_text.configure(state=tk.NORMAL)
-        self.output_text.insert(tk.END, f"[{ts}] {message}\n", tag)
+        self.output_text.insert(tk.END, f"[{ts}] ", "ts")
+        self.output_text.insert(tk.END, f"{message}\n", tag)
         # 限制最大行数，超过后截断前半，防止 Text 无限增长拖慢界面
         line_count = int(self.output_text.index("end-1c").split(".")[0])
         if line_count > MAX_LOG_LINES:
@@ -1048,14 +1257,52 @@ class SysCleanTempApp:
                 tag, data = self.queue.get_nowait()
                 if tag == "__status__":
                     text, fraction = data
+                    pct = int(fraction * 100)
                     self.status_label.config(text=text, fg=FG if fraction < 1 else ACCENT)
                     self.progress["value"] = fraction * 100
-                    self.progress_label.config(text=f"{int(fraction * 100)}%")
+                    self.progress_label.config(
+                        text=f"{pct}%" if pct > 0 else "",
+                        fg=ACCENT if fraction >= 1 else FG_DIM2,
+                    )
+                    if fraction >= 1.0:
+                        self._start_flash()
+                    else:
+                        self._stop_flash()
+                elif tag == "__freed__":
+                    # 释放空间量更新（由 _run_items 通过队列发送）
+                    freed = data
+                    if freed > 0:
+                        self.freed_label.config(text=f"↑ 释放 {format_size(freed)}")
+                    else:
+                        self.freed_label.config(text="")
                 else:
                     self._append_log(tag, data)
         except Empty:
             pass
         self.root.after(QUEUE_POLL_MS, self.process_queue)
+
+    def _start_flash(self):
+        """进度条完成后 ACCENT 颜色闪烁 3 次，给用户视觉完成反馈"""
+        self._stop_flash()
+        self._flash_count = 0
+        self._do_flash()
+
+    def _stop_flash(self):
+        if self._flash_id is not None:
+            self.root.after_cancel(self._flash_id)
+            self._flash_id = None
+
+    def _do_flash(self):
+        if not hasattr(self, "_flash_count"):
+            return
+        if self._flash_count >= 6:   # 3 次亮灭
+            self.progress_label.config(fg=ACCENT)
+            self._flash_id = None
+            return
+        color = ACCENT if self._flash_count % 2 == 0 else FG_DIM2
+        self.progress_label.config(fg=color)
+        self._flash_count += 1
+        self._flash_id = self.root.after(280, self._do_flash)
 
     def update_time(self):
         now = time.strftime("%Y-%m-%d %H:%M:%S")
@@ -1065,22 +1312,32 @@ class SysCleanTempApp:
         self.root.after(1000, self.update_time)
 
     def _update_disk_bar(self):
-        """重绘磁盘容量可视化条"""
+        """重绘磁盘容量可视化条（细条 + 圆头模拟圆角）"""
         try:
             total, used, free = shutil.disk_usage(get_drive())
             frac = used / total
             c = self.disk_canvas
             c.delete("all")
-            w = c.winfo_width() or 140
-            c.create_rectangle(0, 0, w, 10, fill=BG3, outline="")
-            c.create_rectangle(0, 0, max(1, int(w * frac)), 10,
-                               fill=ACCENT if frac < 0.85 else WARN, outline="")
+            w = c.winfo_width() or 120
+            h = DISK_BAR_H
+            r = h // 2  # 圆头半径
+            fill_color = ACCENT if frac < 0.80 else (WARN if frac < 0.92 else DANGER)
+            # 背景槽（深色全宽）
+            c.create_rectangle(r, 0, w - r, h, fill=BG3, outline="")
+            c.create_oval(0, 0, h, h, fill=BG3, outline="")
+            c.create_oval(w - h, 0, w, h, fill=BG3, outline="")
+            # 填充段
+            fill_w = max(h, int(w * frac))
+            c.create_rectangle(r, 0, fill_w - r, h, fill=fill_color, outline="")
+            c.create_oval(0, 0, h, h, fill=fill_color, outline="")
+            if fill_w > h:
+                c.create_oval(fill_w - h, 0, fill_w, h, fill=fill_color, outline="")
         except Exception:
             pass
 
     def show_disk_info_on_start(self):
         self.update_time()
-        self.log("cyan", "━━━━━━ WinSweep v3.1 ━━━━━━")
+        self.log("cyan", "━━━━━━ WinSweep v3.3 ━━━━━━")
         self.log("gray", get_disk_space())
         last = self._last_w11d_time()
         if last:
@@ -1094,8 +1351,10 @@ class SysCleanTempApp:
             messagebox.showwarning("提示", "已有任务正在执行，请稍候…")
             return False
         self.busy = True
+        self._stop_flash()
         self.progress["value"] = 0
-        self.progress_label.config(text="0%")
+        self.progress_label.config(text="", fg=FG_DIM2)
+        self.freed_label.config(text="")
         self._set_action_buttons(False)
 
         def _wrapper():
@@ -1113,23 +1372,27 @@ class SysCleanTempApp:
         """统一执行清理项：逐个执行 + 进度 + 磁盘空间对比"""
         total = len(items)
         start_free = get_free_bytes()
+        # 每次开始前重置释放标签
+        self.queue.put(("__freed__", 0))
         self.log("cyan", f"━━━━━━ {mode_name}（共 {total} 项） ━━━━━━")
         for i, it in enumerate(items, 1):
             name = f"{it['icon']} {it['name']}"
             self.log("info", f"▶ [{i}/{total}] {name}")
-            self.set_status(f"正在清理：{name}  ({i}/{total})", i / total)
+            self.set_status(f"正在清理：{name}  ({i}/{total})", i / total * 0.98)
             try:
                 it["func"](self.log)
             except Exception as e:
                 self.log("error", f"  ✗ {it['name']} 清理失败：{e}")
 
         freed = get_free_bytes() - start_free
+        # 发送释放量到主线程显示
+        self.queue.put(("__freed__", max(freed, 0)))
         if freed > 0:
             self.log("success", f"✔ {mode_name}完成，本次释放约 {format_size(freed)} 空间")
         else:
             self.log("success", f"✔ {mode_name}完成")
         self.set_status("完成", 1.0)
-        self.busy = False
+        # busy 由 run_in_thread._wrapper 的 finally 块统一重置，此处不再重复设置
 
     # ────────────── 清理任务组合 ──────────────
     def quick_clean(self):
@@ -1226,7 +1489,7 @@ class SysCleanTempApp:
         }.get(kind, "")
         danger = item.get("danger", "low")
         danger_note = {
-            "high": "\n\n⚠️ 高危操作：可能影响系统安全/稳定性，建议先创建系统还原点。",
+            "high": "\n\n⚠️ 高危操作：可能影响系统安全/稳定性。\n建议先在「🛠 系统工具 → 🛡 创建系统还原点」中备份，再执行。",
             "medium": "\n\n⚠️ 中危操作：修改系统设置，请先阅读说明文档。",
             "low": "",
         }.get(danger, "")
@@ -1392,13 +1655,22 @@ class SysCleanTempApp:
                     bg=BG, font=("微软雅黑", 9, "bold"), anchor="w",
                 ).pack(fill="x", padx=4, pady=(8, 2))
             var = tk.IntVar()
+            cb_text = f"{it['icon']}  {it['name']}"
+            cb_fg = WARN if it.get("optional") else FG
             cb = tk.Checkbutton(
-                inner, text=f"{it['icon']}  {it['name']}", variable=var,
-                fg=FG, bg=BG, selectcolor=BG2,
+                inner, text=cb_text, variable=var,
+                fg=cb_fg, bg=BG, selectcolor=BG2,
                 activebackground=BG, activeforeground=ACCENT,
                 font=FONT_N, anchor="w", highlightthickness=0, cursor="hand2",
             )
             cb.pack(fill="x", padx=6, pady=1)
+            # 可选项：在复选框下方显示风险提示
+            if it.get("optional") and it.get("tip"):
+                tk.Label(
+                    inner, text=f"   {it['tip']}",
+                    fg=WARN, bg=BG, font=("微软雅黑", 8),
+                    anchor="w", wraplength=360, justify="left",
+                ).pack(fill="x", padx=24, pady=(0, 2))
             vars_dict[it["key"]] = var
 
         # 操作行
@@ -1411,9 +1683,10 @@ class SysCleanTempApp:
                 var.set(0)
 
         def recommend():
-            # 推荐 = 全部缓存清理（安全项）
+            # 推荐 = 全部缓存清理中的非可选项（排除 prefetch 等标注 optional 的项）
             for k, var in vars_dict.items():
-                var.set(1 if CLEAN_BY_KEY[k]["group"] == "缓存清理" else 0)
+                it = CLEAN_BY_KEY[k]
+                var.set(1 if it["group"] == "缓存清理" and not it.get("optional") else 0)
 
         btn_frame = tk.Frame(win, bg=BG)
         btn_frame.pack(fill="x", padx=14, pady=(0, 6))
@@ -1445,11 +1718,12 @@ class SysCleanTempApp:
         win = tk.Toplevel(self.root)
         win.title("系统工具")
         win.configure(bg=BG)
-        center(win, 340, 300)
+        center(win, 340, 350)
         win.resizable(False, False)
         win.transient(self.root)
 
         tools = [
+            ("🛡 创建系统还原点", self._create_restore_point_ui),
             ("🧹 打开磁盘清理工具 (cleanmgr)", lambda: start_disk_cleanup(self.log)),
             ("🚿 DISM 组件清理 (WinSxS)", lambda: self.run_in_thread(
                 lambda: (run_dism_clean(self.log), setattr(self, "busy", False))
@@ -1461,7 +1735,14 @@ class SysCleanTempApp:
         ]
         for text, cmd in tools:
             make_button(win, text, cmd, "#2D3748", width=34).pack(fill="x", padx=20, pady=4)
-        make_button(win, "关闭", win.destroy, DANGER, width=15).pack(fill="x", padx=20, pady=(8, 14))
+
+        tk.Label(
+            win,
+            text='🛡 还原点建议：执行高危优化操作前先创建，\n   可在 "系统属性 -> 系统保护" 中管理或恢复。',
+            fg=FG_DIM, bg=BG, font=("微软雅黑", 8), justify="left", anchor="w",
+        ).pack(fill="x", padx=20, pady=(0, 4))
+
+        make_button(win, "关闭", win.destroy, DANGER, width=15).pack(fill="x", padx=20, pady=(4, 14))
 
     def run_sfc(self):
         """运行 sfc /scannow"""
@@ -1477,6 +1758,60 @@ class SysCleanTempApp:
         if messagebox.askyesno("确认", "磁盘检查将在下次重启时执行。是否继续？"):
             subprocess.Popen(f"chkdsk {drive} /f", shell=True)
             self.log("warning", "  磁盘检查已安排，将在系统重启时执行")
+
+    def _create_restore_point_ui(self):
+        """弹窗输入还原点描述，确认后后台创建系统还原点"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("创建系统还原点")
+        dialog.configure(bg=BG)
+        center(dialog, 400, 220)
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()   # 模态
+
+        tk.Label(
+            dialog, text="🛡  创建系统还原点",
+            fg=ACCENT, bg=BG, font=("微软雅黑", 11, "bold"),
+        ).pack(anchor="w", padx=20, pady=(16, 4))
+
+        tk.Label(
+            dialog,
+            text="还原点描述（可留空使用默认值）：",
+            fg=FG_DIM, bg=BG, font=FONT_N,
+        ).pack(anchor="w", padx=20)
+
+        default_desc = f"WinSweep 操作前备份 {time.strftime('%Y-%m-%d %H:%M')}"
+        desc_var = tk.StringVar(value=default_desc)
+        entry = tk.Entry(
+            dialog, textvariable=desc_var,
+            bg=BG3, fg=FG, insertbackground=FG,
+            font=FONT_N, relief="flat", bd=0,
+            highlightthickness=1, highlightbackground=ACCENT2,
+        )
+        entry.pack(fill="x", padx=20, pady=(4, 12), ipady=4)
+        entry.select_range(0, tk.END)
+        entry.focus_set()
+
+        tk.Label(
+            dialog,
+            text='⚠ 需要系统保护对 C: 已启用，且需要管理员权限。\n'
+                 '  首次使用若失败，请先在 "系统属性 -> 系统保护" 中开启。',
+            fg=FG_DIM, bg=BG, font=("微软雅黑", 8), justify="left",
+        ).pack(anchor="w", padx=20, pady=(0, 10))
+
+        btn_row = tk.Frame(dialog, bg=BG)
+        btn_row.pack(fill="x", padx=20, pady=(0, 14))
+
+        def do_create():
+            desc = desc_var.get().strip() or default_desc
+            dialog.destroy()
+            if self.run_in_thread(lambda: create_restore_point(self.log, desc)):
+                self.set_status("正在创建系统还原点…", 0)
+
+        make_button(btn_row, "✔ 创建还原点", do_create, ACCENT, width=16).pack(side="left", padx=(0, 8))
+        make_button(btn_row, "取消", dialog.destroy, "#2D3748", width=8).pack(side="left")
+        dialog.bind("<Return>", lambda e: do_create())
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
 
     def show_disk_space(self):
         self.log("cyan", "━━━━━━ 磁盘空间信息 ━━━━━━")
