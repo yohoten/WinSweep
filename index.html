@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WinSweep — Windows 系统垃圾清理与一站式优化工具</title>
+<meta name="description" content="WinSweep 是一款基于 Python 标准库 tkinter 编写的 Windows 系统垃圾清理与一站式优化工具，双击即用、零第三方依赖，集成 Win11Debloat 与 Neon 优化包，覆盖缓存清理、系统精简、性能优化全流程。" />
+<meta name="keywords" content="WinSweep, Windows 清理, 系统优化, 垃圾清理, Win11Debloat, Neon 优化, 开源" />
+<meta property="og:title" content="WinSweep — Windows 系统垃圾清理与一站式优化工具" />
+<meta property="og:description" content="双击即用、零第三方依赖的 Windows 清理与优化工具，集成缓存清理、系统精简、性能优化全流程。" />
+<meta property="og:type" content="website" />
+<meta name="theme-color" content="#0b0e14" />
+<style>
+  :root {
+    --bg: #0b0e14;
+    --bg-2: #10141d;
+    --bg-3: #161b26;
+    --card: #121722;
+    --card-hover: #181e2b;
+    --border: #222936;
+    --border-soft: #1b2230;
+    --text: #e8ecf4;
+    --text-dim: #a3adc0;
+    --text-mute: #6b7689;
+    --accent: #37d67a;
+    --accent-2: #2fb96a;
+    --accent-soft: rgba(55, 214, 122, 0.12);
+    --cyan: #39c5e0;
+    --amber: #f5b942;
+    --red: #ff6b6b;
+    --radius: 14px;
+    --radius-lg: 20px;
+    --maxw: 1120px;
+    --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6);
+    --font-mono: "SFMono-Regular", "JetBrains Mono", Consolas, "Courier New", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::selection { background: rgba(55, 214, 122, 0.3); }
+
+  /* 背景光晕 */
+  .glow {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    opacity: 0.25;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .glow-1 { width: 620px; height: 620px; background: #1f7a4d; top: -220px; right: -140px; }
+  .glow-2 { width: 520px; height: 520px; background: #174a63; top: 40%; left: -220px; }
+
+  .container { max-width: var(--maxw); margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+  /* ===== 导航栏 ===== */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(11, 14, 20, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .nav {
+    max-width: var(--maxw); margin: 0 auto;
+    padding: 0 24px; height: 64px;
+    display: flex; align-items: center; gap: 28px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+  .brand .logo {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(135deg, #37d67a, #1fa36a);
+    display: grid; place-items: center; box-shadow: 0 4px 14px -4px rgba(55, 214, 122, 0.6);
+  }
+  .brand .logo svg { width: 19px; height: 19px; }
+  .nav-links { display: flex; gap: 24px; margin-left: auto; align-items: center; }
+  .nav-links a { color: var(--text-dim); font-size: 14.5px; font-weight: 500; transition: color .18s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-gh {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 8px 16px; border-radius: 9px;
+    border: 1px solid var(--border); background: var(--bg-2);
+    font-size: 14px; font-weight: 600; transition: all .18s;
+  }
+  .nav-gh:hover { border-color: var(--accent); color: var(--accent); }
+  .nav-gh svg { width: 17px; height: 17px; fill: currentColor; }
+
+  /* ===== Hero ===== */
+  .hero { padding: 84px 0 56px; text-align: center; position: relative; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 6px 14px; border-radius: 999px;
+    background: var(--accent-soft); border: 1px solid rgba(55, 214, 122, 0.25);
+    color: var(--accent); font-size: 13px; font-weight: 600; letter-spacing: .2px;
+  }
+  .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(55,214,122,.2); }
+  .hero h1 { font-size: 62px; line-height: 1.1; font-weight: 800; letter-spacing: -1px; margin: 22px 0 18px; }
+  .hero h1 .grad {
+    background: linear-gradient(120deg, #37d67a, #39c5e0 70%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero .sub { font-size: 19px; color: var(--text-dim); max-width: 640px; margin: 0 auto; }
+  .hero .sub strong { color: var(--text); font-weight: 600; }
+  .cta { display: flex; gap: 14px; justify-content: center; margin-top: 36px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    padding: 14px 26px; border-radius: 12px;
+    font-size: 15.5px; font-weight: 700; cursor: pointer; transition: all .2s;
+    border: 1px solid transparent;
+  }
+  .btn svg { width: 18px; height: 18px; }
+  .btn-primary {
+    background: linear-gradient(135deg, #37d67a, #25b86a); color: #062012;
+    box-shadow: 0 10px 28px -8px rgba(55, 214, 122, 0.7);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -8px rgba(55, 214, 122, 0.8); }
+  .btn-ghost { background: var(--bg-2); border-color: var(--border); color: var(--text); }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-2px); }
+  .hero-meta { margin-top: 22px; display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; color: var(--text-mute); font-size: 13px; }
+  .hero-meta span { display: inline-flex; align-items: center; gap: 6px; }
+  .hero-meta svg { width: 15px; height: 15px; }
+
+  /* 截图 */
+  .shot-wrap { margin-top: 54px; position: relative; }
+  .shot {
+    width: 100%; border-radius: var(--radius-lg);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    display: block;
+  }
+  .shot-ring { position: absolute; inset: -1px; border-radius: var(--radius-lg); pointer-events: none; box-shadow: 0 0 0 1px rgba(55,214,122,.08), 0 40px 90px -40px rgba(55,214,122,.35); }
+
+  /* ===== 通用区块 ===== */
+  section { padding: 72px 0; }
+  .sec-head { text-align: center; margin-bottom: 48px; }
+  .sec-head .eyebrow { font-size: 13px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--accent); }
+  .sec-head h2 { font-size: 34px; font-weight: 800; letter-spacing: -.5px; margin: 10px 0 12px; }
+  .sec-head p { color: var(--text-dim); font-size: 16px; max-width: 620px; margin: 0 auto; }
+
+  /* 特性网格 */
+  .grid { display: grid; gap: 20px; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px;
+    transition: transform .2s, border-color .2s, background .2s;
+    position: relative; overflow: hidden;
+  }
+  .card:hover { transform: translateY(-4px); border-color: rgba(55,214,122,.4); background: var(--card-hover); }
+  .card .icon {
+    width: 46px; height: 46px; border-radius: 12px;
+    display: grid; place-items: center; font-size: 23px; margin-bottom: 16px;
+    background: var(--accent-soft); border: 1px solid rgba(55,214,122,.2);
+  }
+  .card h3 { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .card p { color: var(--text-dim); font-size: 14.5px; }
+  .card .tag {
+    display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px; background: var(--bg-3); color: var(--text-dim);
+    border: 1px solid var(--border-soft);
+  }
+
+  /* 功能清单 */
+  .feature-row {
+    display: flex; align-items: center; gap: 40px;
+    padding: 20px 0; border-bottom: 1px solid var(--border-soft);
+  }
+  .feature-row:last-child { border-bottom: none; }
+  .feature-row .f-ico {
+    flex-shrink: 0; width: 54px; height: 54px; border-radius: 14px;
+    display: grid; place-items: center; font-size: 26px;
+    background: var(--bg-3); border: 1px solid var(--border);
+  }
+  .feature-row .f-body { flex: 1; }
+  .feature-row h4 { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .feature-row p { color: var(--text-dim); font-size: 14.5px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  }
+  .chip-red { background: rgba(255,107,107,.13); color: var(--red); border: 1px solid rgba(255,107,107,.3); }
+  .chip-amber { background: rgba(245,185,66,.13); color: var(--amber); border: 1px solid rgba(245,185,66,.3); }
+  .chip-green { background: rgba(55,214,122,.13); color: var(--accent); border: 1px solid rgba(55,214,122,.3); }
+
+  /* 表格 */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 560px; }
+  th, td { padding: 14px 18px; text-align: left; }
+  th { background: var(--bg-3); color: var(--text-mute); font-weight: 600; font-size: 13px; letter-spacing: .3px; }
+  td { border-top: 1px solid var(--border-soft); color: var(--text-dim); }
+  tr:hover td { background: rgba(255,255,255,.015); }
+
+  /* 下载区 */
+  .dl-panel {
+    background: var(--bg-2); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 40px; position: relative; overflow: hidden;
+  }
+  .dl-panel::before {
+    content: ""; position: absolute; top: -60px; right: -60px; width: 240px; height: 240px;
+    background: radial-gradient(circle, rgba(55,214,122,.18), transparent 70%); pointer-events: none;
+  }
+  .dl-title { font-size: 24px; font-weight: 800; margin-bottom: 6px; }
+  .dl-sub { color: var(--text-dim); margin-bottom: 28px; }
+  .dl-options { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .dl-card {
+    background: var(--bg-3); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 24px; transition: all .2s; cursor: pointer;
+  }
+  .dl-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+  .dl-card .d-icon { font-size: 26px; margin-bottom: 12px; }
+  .dl-card h4 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .dl-card p { font-size: 13.5px; color: var(--text-mute); margin-bottom: 16px; }
+  .dl-card .d-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 14px; font-weight: 700; color: var(--accent);
+  }
+  .code-block {
+    margin-top: 30px; background: #0a0d13; border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 18px; display: flex; align-items: center; gap: 12px;
+  }
+  .code-block code { flex: 1; font-family: var(--font-mono); font-size: 13.5px; color: #bcd8ff; white-space: nowrap; overflow-x: auto; }
+  .copy-btn {
+    flex-shrink: 0; padding: 7px 14px; border-radius: 8px; cursor: pointer;
+    background: var(--bg-3); border: 1px solid var(--border); color: var(--text-dim);
+    font-size: 13px; font-weight: 600; transition: all .18s; font-family: inherit;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.done { color: var(--accent); border-color: var(--accent); }
+
+  /* 步骤 */
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; counter-reset: step; }
+  .step {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px; position: relative;
+  }
+  .step .n {
+    width: 34px; height: 34px; border-radius: 10px;
+    background: linear-gradient(135deg, #37d67a, #25b86a); color: #062012;
+    display: grid; place-items: center; font-weight: 800; font-size: 16px; margin-bottom: 16px;
+  }
+  .step h4 { font-size: 16.5px; font-weight: 700; margin-bottom: 8px; }
+  .step p { color: var(--text-dim); font-size: 14px; }
+  .kbd {
+    display: inline-block; padding: 2px 8px; border-radius: 6px;
+    background: var(--bg-3); border: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 12.5px; color: var(--text); border-bottom-width: 2px;
+  }
+
+  /* 时间线 */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before { content: ""; position: absolute; left: 8px; top: 6px; bottom: 6px; width: 2px; background: var(--border); }
+  .tl-item { position: relative; padding: 0 0 30px 20px; }
+  .tl-item::before {
+    content: ""; position: absolute; left: -24px; top: 7px;
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 4px rgba(55,214,122,.15);
+  }
+  .tl-item .v { font-weight: 700; font-size: 16px; color: var(--accent); }
+  .tl-item .t { color: var(--text-mute); font-size: 12.5px; margin-left: 8px; }
+  .tl-item p { color: var(--text-dim); font-size: 14px; margin-top: 4px; }
+
+  /* 免责声明 */
+  .notice {
+    background: rgba(255,107,107,.06); border: 1px solid rgba(255,107,107,.25);
+    border-radius: var(--radius); padding: 26px 28px;
+  }
+  .notice h3 { color: var(--red); font-size: 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .notice p { color: var(--text-dim); font-size: 14px; }
+  .notice ul { margin: 10px 0 0 20px; color: var(--text-dim); font-size: 14px; }
+  .notice li { margin-bottom: 6px; }
+
+  footer {
+    border-top: 1px solid var(--border-soft); padding: 36px 0;
+    text-align: center; color: var(--text-mute); font-size: 13.5px;
+  }
+  footer a { color: var(--text-dim); }
+  footer a:hover { color: var(--accent); }
+  footer .foot-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; color: var(--text); font-size: 15px; margin-bottom: 8px; }
+  footer .foot-brand .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#37d67a,#1fa36a); display: grid; place-items: center; }
+  footer .foot-brand .logo svg { width: 13px; height: 13px; }
+
+  @media (max-width: 900px) {
+    .grid-3, .grid-2, .steps, .dl-options { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 42px; }
+    .nav-links a { display: none; }
+    .feature-row { flex-direction: column; align-items: flex-start; gap: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="glow glow-1"></div>
+<div class="glow glow-2"></div>
+
+<!-- 导航 -->
+<header>
+  <div class="nav">
+    <a class="brand" href="#top">
+      <span class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M18 3l-8 8 3 3 8-8V3h-3z" fill="#062012"/><path d="M15 6l-11.5 11.5a2.1 2.1 0 002.9 2.9L18 9l-3-3z" fill="#062012"/><path d="M4 20l3.5-3.5" stroke="#062012" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </span>
+      WinSweep
+    </a>
+    <div class="nav-links">
+      <a href="#features">功能</a>
+      <a href="#highlight">亮点</a>
+      <a href="#download">下载</a>
+      <a href="#usage">使用</a>
+      <a href="#versions">版本</a>
+    </div>
+    <a class="nav-gh" href="https://github.com/yohoten/WinSweep" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </div>
+</header>
+
+<!-- Hero -->
+<div class="container" id="top">
+  <div class="hero">
+    <span class="badge"><span class="dot"></span> v3.3 最新版本 · 开源免费</span>
+    <h1>为你的 Windows<br/>做一次<span class="grad">彻底大扫除</span></h1>
+    <p class="sub">WinSweep 是一款基于 Python 标准库 <strong>tkinter</strong> 编写的系统垃圾清理与一站式优化工具——<strong>双击即用，零第三方依赖</strong>。集成 Win11Debloat 与 Neon 优化包，覆盖缓存清理、系统精简、性能优化全流程。</p>
+    <div class="cta">
+      <a class="btn btn-primary" href="#download">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        立即下载
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/yohoten/WinSweep" target="_blank" rel="noopener">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        查看源码
+      </a>
+    </div>
+    <div class="hero-meta">
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 4v16M2 9h6M2 15h6"/></svg> Windows 10 / 11</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z"/></svg> 双击即用</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 零第三方依赖</span>
+      <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg> 危险操作二次确认</span>
+    </div>
+
+    <div class="shot-wrap">
+      <img class="shot" src="https://picui.ogmua.cn/s1/2026/08/14/6a7f2b178f9b2.webp" alt="WinSweep 界面预览" loading="lazy" />
+      <div class="shot-ring"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 核心功能 -->
+<section id="features">
+  <div class="container">
+    <div class="sec-head">
+      <div class="eyebrow">核心功能</div>
+      <h2>一站式覆盖清理与优化全流程</h2>
+      <p>从日常缓存清理到系统深度精简，五大模块各司其职。</p>
+    </div>
+    <div class="grid grid-3">
+      <div class="card">
+        <div class="icon">🧹</div>
+        <h3>缓存清理</h3>
+        <p>14 项清理项，支持快速 / 深度 / 自定义三种模式，执行前后自动对比磁盘空间，释放量实时可见。</p>
+        <span class="tag">14 项 · 3 种模式</span>
+      </div>
+      <div class="card">
+        <div class="icon">📦</div>
+        <h3>系统预装清理</h3>
+        <p>集成 Win11Debloat，一键移除 Windows 11 预装应用与隐私功能，3 个快速预设 + 完整图形界面。</p>
+        <span class="tag">Win11Debloat</span>
+      </div>
+      <div class="card">
+        <div class="icon">🧰</div>
+        <h3>系统优化</h3>
+        <p>Neon 优化包 10 项，按低 / 中 / 高危分级标注，高危项强化提示并引导先建系统还原点。</p>
+        <span class="tag">Neon 优化包 · 10 项</span>
+      </div>
+      <div class="card">
+        <div class="icon">🛠️</div>
+        <h3>系统工具</h3>
+        <p>DISM 组件清理、sfc 系统文件检查、chkdsk 磁盘修复、磁盘清理，以及一键创建系统还原点。</p>
+        <span class="tag">DISM / sfc / chkdsk</span>
+      </div>
+      <div class="card">
+        <div class="icon">💽</div>
+        <h3>磁盘信息</h3>
+        <p>启动即显示各驱动器容量，常驻圆角进度条按使用率变色，自动检测 Windows.old 残留并提示。</p>
+        <span class="tag">实时监控 · F5 刷新</span>
+      </div>
+      <div class="card">
+        <div class="icon">🖥️</div>
+        <h3>现代深色 UI</h3>
+        <p>品牌栏 / 分组按钮 / 状态栏 + 进度条 / hover 反馈，高 DPI 适配，缩放屏下清晰不模糊。</p>
+        <span class="tag">高 DPI 适配</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 功能亮点 -->
+<section id="highlight" style="padding-top:0;">
+  <div class="container">
+    <div class="sec-head">
+      <div class="eyebrow">功能亮点</div>
+      <h2>每个细节都为安全与效率设计</h2>
+    </div>
+    <div class="dl-panel" style="background:var(--card);">
+      <div class="feature-row">
+        <div class="f-ico">⚡</div>
+        <div class="f-body">
+          <h4>三种清理模式，按需选择</h4>
+          <p><span class="chip chip-green">⚡ 快速清理</span> 一键执行 7 项常用安全缓存 · <span class="chip chip-amber">🚀 深度清理</span> 全量 14 项 + Windows.old 检查 · <span class="chip chip-green">🎯 自定义清理</span> 分组勾选，推荐预设自动排除危险项。</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">🌐</div>
+        <div class="f-body">
+          <h4>浏览器缓存动态检测</h4>
+          <p>自动扫描本机已安装浏览器，支持 Edge、Chrome、Brave、Opera、Opera GX、Vivaldi、INetCache 等 11 条候选路径，仅清理实际存在的路径。</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">🛡️</div>
+        <div class="f-body">
+          <h4>危险操作分级 + 二次确认</h4>
+          <p>系统优化项按危险等级标注：<span class="chip chip-green">🟢 低危</span> <span class="chip chip-amber">🟡 中危</span> <span class="chip chip-red">🔴 高危</span>。所有执行均有二次确认弹窗，高危项强制引导先创建系统还原点。</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">🧵</div>
+        <div class="f-body">
+          <h4>线程化执行，界面不卡顿</h4>
+          <p>清理任务在后台线程运行，消息经 Queue 中转批量刷新 UI；日志最多保留 800 行自动防膨胀，长时运行流畅稳定。</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">🔁</div>
+        <div class="f-body">
+          <h4>自动备份，可回退</h4>
+          <p>执行系统预装清理前自动备份 Win11Debloat 配置到本地（保留最近 5 份），并记录最近一次清理时间。</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">📦</div>
+        <div class="f-body">
+          <h4>零依赖 · 可整体迁移</h4>
+          <p>仅依赖 Python 内置标准库，无需 pip install；资源 / 数据目录路径自动适配，整个项目文件夹可直接复制或移动。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 优化项 -->
+<section style="padding-top:0;">
+  <div class="container">
+    <div class="sec-head">
+      <div class="eyebrow">Neon 优化包</div>
+      <h2>10 类系统优化项</h2>
+      <p>统一管理，每项支持「打开目录 / 查看说明 / 执行入口」，建议操作前先阅读说明。</p>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>优化项</th><th>危险等级</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>系统备份（Dism++）</td><td>🟡 中危</td><td>系统镜像备份与还原</td></tr>
+          <tr><td>彻底关闭 WinDefender</td><td>🔴 高危</td><td>不可逆，务必先关实时保护与篡改防护</td></tr>
+          <tr><td>电源与 CPU 优化</td><td>🟡 中危</td><td>Neon 电源计划 / 注册表优化 / 大小核调度</td></tr>
+          <tr><td>设备管理</td><td>🟡 中危</td><td>DeviceCleanup 清理未使用设备</td></tr>
+          <tr><td>游戏性能优化</td><td>🟡 中危</td><td>注册表优化 / 禁用 Gamebar / N 卡高频 / DesktopHeap</td></tr>
+          <tr><td>键鼠优化</td><td>🟢 低危</td><td>响应注册表 / USB 轮询率</td></tr>
+          <tr><td>服务与更新管理</td><td>🔴 高危</td><td>关闭 / 开启 Windows 更新 / 禁用无用服务</td></tr>
+          <tr><td>内存 / 硬盘 / 网络优化</td><td>🟡 中危</td><td>PowerShell 一键脚本 + 注册表导入</td></tr>
+          <tr><td>中断机制与延迟优化</td><td>🔴 高危</td><td>关闭 HPET / USB 中断仲裁 / MSI 信号亲和</td></tr>
+          <tr><td>应用优先级</td><td>🟡 中危</td><td>进程优先级 / CPU 亲和性注册表</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- 下载 -->
+<section id="download" style="padding-top:0;">
+  <div class="container">
+    <div class="sec-head">
+      <div class="eyebrow">获取 WinSweep</div>
+      <h2>下载安装</h2>
+      <p>开源免费，代码托管于 GitHub。三种获取方式任选其一。</p>
+    </div>
+    <div class="dl-panel">
+      <div class="dl-title">🚀 开始使用 WinSweep</div>
+      <div class="dl-sub">运行环境：Windows 10 / 11 · Python 3.8+ · 无需任何第三方依赖</div>
+      <div class="dl-options">
+        <a class="dl-card" href="https://github.com/yohoten/WinSweep/releases" target="_blank" rel="noopener">
+          <div class="d-icon">📦</div>
+          <h4>下载 Release</h4>
+          <p>前往 GitHub Releases 获取打包版本，适合普通用户。</p>
+          <span class="d-btn">前往下载 →</span>
+        </a>
+        <a class="dl-card" href="https://github.com/yohoten/WinSweep/archive/refs/heads/main.zip" target="_blank" rel="noopener">
+          <div class="d-icon">🗜️</div>
+          <h4>下载源码 ZIP</h4>
+          <p>直接下载仓库源码压缩包，解压后双击运行。</p>
+          <span class="d-btn">下载 ZIP →</span>
+        </a>
+        <a class="dl-card" href="https://github.com/yohoten/WinSweep" target="_blank" rel="noopener">
+          <div class="d-icon">⭐</div>
+          <h4>Star 收藏仓库</h4>
+          <p>关注项目动态，获取后续版本更新与问题反馈。</p>
+          <span class="d-btn">打开仓库 →</span>
+        </a>
+      </div>
+      <div class="code-block">
+        <code>git clone https://github.com/yohoten/WinSweep.git</code>
+        <button class="copy-btn" onclick="copyClone(this)">复制</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 使用 -->
+<section id="usage" style="padding-top:0;">
+  <div class="container">
+    <div class="sec-head">
+      <div class="eyebrow">快速上手</div>
+      <h2>三步开始使用</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <h4>安装 Python 3.8+</h4>
+        <p>前往 <a href="https://www.python.org/downloads/" target="_blank" rel="noopener" style="color:var(--accent);">python.org</a> 下载安装，勾选「Add Python to PATH」。</p>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <h4>双击启动</h4>
+        <p>直接双击 <span class="kbd">WinSweep.pyw</span>，程序自动弹出 UAC 请求管理员权限；也可右键「以管理员身份运行」。</p>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <h4>按需使用</h4>
+        <p>日常选「⚡ 快速清理」，定期选「🚀 深度清理」，精简系统用「📦 系统预装清理」，调优用「🧰 系统优化」。</p>
+      </div>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:24px;">
+      <div class="card">
+        <h3>⌨️ 快捷键</h3>
+        <p style="margin-top:10px;">
+          <span class="kbd">F5</span> 刷新时间与磁盘信息 &nbsp;·&nbsp;
+          <span class="kbd">Ctrl + L</span> 清空日志 &nbsp;·&nbsp;
+          <span class="kbd">Ctrl + C</span> 复制全部日志
+        </p>
+      </div>
+      <div class="card">
+        <h3>📄 技术栈</h3>
+        <p style="margin-top:10px;">纯标准库实现，仅依赖 tkinter + Python 内置模块（os / shutil / subprocess / ctypes / threading / queue 等），无需 pip install。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 版本历史 -->
+<section id="versions" style="padding-top:0;">
+  <div class="container">
+    <div class="sec-head">
+      <div class="eyebrow">更新日志</div>
+      <h2>版本历史</h2>
+    </div>
+    <div class="timeline">
+      <div class="tl-item">
+        <span class="v">v3.3</span><span class="t">当前版本</span>
+        <p>UI 细节全面优化：颜色系统扩充、ToolTip 延迟优化、按钮禁用态视觉灰化、磁盘条改 6px 圆角胶囊三档阈值、日志时间戳独立渲染、状态栏进度条加厚等。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">v3.2</span><span class="t">Bug 修复 + 功能补充</span>
+        <p>修复 busy 双重重置 Bug；预读取文件改为可选；新增浏览器缓存动态检测；新增「🛡 创建系统还原点」入口。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">v3.1</span><span class="t">系统预装清理 + 系统优化模块</span>
+        <p>集成 Win11Debloat 与 Neon 优化包；资源 / 数据 / 归档目录分层规范化；配置自动备份。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">v3.0</span><span class="t">全新现代 UI</span>
+        <p>全新深色界面、日志时间戳、清理前后磁盘空间对比、大幅提速、高 DPI 适配。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">更早</span><span class="t">基础版本</span>
+        <p>基础清理功能版本，由 SysCleanTemp Pro 更名为 WinSweep。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 免责声明 -->
+<section style="padding-top:0;">
+  <div class="container">
+    <div class="notice">
+      <h3>⚠️ 免责声明</h3>
+      <p>本工具涉及<strong>修改系统设置与删除系统文件</strong>，请在充分了解每项操作含义后再执行。因使用本工具造成的数据丢失、系统不稳定或其他任何损失，作者不承担任何责任。</p>
+      <ul>
+        <li>高危操作前建议先创建系统还原点或使用 Dism++ 备份系统镜像。</li>
+        <li>系统预装清理部分操作不可逆，移除的应用通常可从 Microsoft Store 重新安装。</li>
+        <li>Win11Debloat 为第三方开源项目（MIT 许可证），详见其自带 LICENSE 与 README。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <span class="foot-brand">
+      <span class="logo">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M18 3l-8 8 3 3 8-8V3h-3z" fill="#062012"/><path d="M15 6l-11.5 11.5a2.1 2.1 0 002.9 2.9L18 9l-3-3z" fill="#062012"/><path d="M4 20l3.5-3.5" stroke="#062012" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </span>
+      WinSweep
+    </span>
+    <p>Windows 系统垃圾清理与一站式优化工具 · 开源免费 · <a href="https://github.com/yohoten/WinSweep" target="_blank" rel="noopener">GitHub 仓库</a></p>
+    <p style="margin-top:6px;">v3.3 · MIT 开源（Win11Debloat） · 使用即视为同意上述免责声明</p>
+  </div>
+</footer>
+
+<script>
+  function copyClone(btn) {
+    const text = 'git clone https://github.com/yohoten/WinSweep.git';
+    const done = () => {
+      const old = btn.textContent;
+      btn.textContent = '已复制 ✓';
+      btn.classList.add('done');
+      setTimeout(() => { btn.textContent = old; btn.classList.remove('done'); }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+</script>
+</body>
+</html>
