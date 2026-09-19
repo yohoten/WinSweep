@@ -5,14 +5,14 @@
 # 权限: 管理员权限（程序启动时自动请求 UAC）
 
 # ---- 使用的标准库 ----
-# tkinter          GUI 界面（随 Python 官方安装包自带，无需额外安装）
-# os / sys / glob  路径与文件操作
-# shutil / stat    文件清理与只读属性处理
-# subprocess       调用系统命令（powershell / reg / dism / sfc / chkdsk 等）
-# threading        后台线程执行清理任务，避免界面卡顿
-# queue            线程间日志消息队列
-# time             时间戳与磁盘信息刷新
-# ctypes           UAC 提权、管理员检测、DPI 适配
+# tkinter / ttk / tkinter.font / filedialog   GUI 界面（随 Python 官方安装包自带，无需额外安装）
+# os / sys / glob / json       路径、文件与偏好设置（data/settings.json）
+# shutil / stat / tempfile     文件清理、只读属性处理与临时错误日志
+# subprocess                   调用系统命令（powershell / reg / dism / sfc / chkdsk 等）
+# threading / queue            后台线程执行清理，所有 UI 变更经队列回主线程
+# time                         时间戳、任务计时与磁盘信息刷新
+# math                         磁盘胶囊条与旋转指示器的几何计算
+# ctypes                       UAC 提权、管理员检测、DPI 适配、DWM 深色标题栏
 # tempfile         临时文件（Win11Debloat GUI 错误日志）
 
 # ---- 可选（非必需）----
