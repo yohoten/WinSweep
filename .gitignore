@@ -37,3 +37,6 @@ venv/
 .venv/
 env/
 ENV/
+
+# ============ 构建期生成的版本宏（由 build.py 写入，版本号以源码为准） ============
+installer/build_meta.iss

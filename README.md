@@ -142,9 +142,14 @@ v3.4 为**界面与显示重构版**：单窗口多视图 + 可拖拽日志区 +
 ```
 WinSweep/
 ├── WinSweep.pyw              # 主程序（GUI，双击运行，无控制台窗口）
-├── icon.ico                  # 可选：自定义窗口图标（缺省使用内置扫帚图标）
+├── icon.ico                  # 应用图标（由 build.py 生成，可自行替换）
+├── build.py                  # 打包脚本：exe + Inno Setup 安装包
 ├── README.md
 ├── requirements.txt
+│
+├── installer/                # 安装包脚本（Inno Setup 种子模板）
+│   ├── WinSweep.iss          # 安装脚本：目录 / 快捷方式 / 卸载保留策略
+│   └── languages/            # 安装向导界面语言（简体中文）
 │
 ├── resources/                # 资源目录（可整体移动，路径自动适配）
 │   ├── Optimization/         # Neon 系统优化包（10 类）
@@ -307,6 +312,42 @@ WinSweep/
 ### 更早版本
 - 基础清理功能版本（`archive/` 目录有 v2 备份）
 - 由 SysCleanTemp Pro 更名为 WinSweep
+
+---
+
+## 📦 构建与打包（开发者）
+
+项目自带 `build.py`，一条命令产出免安装目录与安装包：
+
+| 命令 | 作用 |
+| --- | --- |
+| `python build.py` | 全流程：图标 → exe → 安装包 |
+| `python build.py --exe-only` | 只产出免安装运行目录 |
+| `python build.py --installer-only` | 复用已有 exe，只重新编译安装包 |
+| `python build.py --onefile` | exe 打成单文件（启动略慢，分发更简） |
+| `python build.py --icon-only` | 只生成 `icon.ico` |
+| `python build.py --clean` | 清理 `build/` 与 `dist/` |
+
+产物：
+
+| 路径 | 说明 |
+| --- | --- |
+| `dist/app/` | 免安装运行目录，双击 `WinSweep.exe` 即可运行（自动请求管理员权限） |
+| `dist/installer/WinSweep-<版本>-setup.exe` | 安装包：开始菜单快捷方式、可选桌面图标、完整卸载 |
+
+几点说明：
+
+- **exe 是启动器，不是脚本容器**。它读取同目录的 `WinSweep.pyw`，并以 `__file__ = <安装目录>\WinSweep.pyw` 执行，
+  使 `resources/`、`data/`、`README.md` 的定位与直接双击 `.pyw` 完全一致。
+  若把脚本直接打进单文件 exe，`__file__` 会指向临时解压目录 —— 资源定位失效，且 `data/` 每次运行被清空，
+  字号、视图、日志等偏好无法持久化。
+- 版本号取自 `WinSweep.pyw` 的 `APP_VERSION`，无需在两处维护；也可用 `--version 3.5` 临时覆盖。
+- 首次构建会自动执行 `pip install pyinstaller`。
+- 编译安装包需要 **Inno Setup 6**（`winget install JRSoftware.InnoSetup`）；
+  未安装时可先用 `--exe-only` 得到免安装目录。
+- `dist/app/` 同时是安装包的唯一内容来源，安装内容与免安装目录完全一致，不会出现两处清单不一致。
+- 安装脚本 `installer/WinSweep.iss` 可作为其它项目的模板：改 `MyAppName` / `MyAppId` / `MyAppExeName`
+  与 `[Files]` 的来源目录即可。
 
 ---
 
