@@ -20,7 +20,7 @@
   #include "build_meta.iss"
 #endif
 #ifndef MyAppVersion
-  #define MyAppVersion "3.4"
+  #define MyAppVersion "3.6"
 #endif
 
 ; ── 构建期开关（手工编译时用以下默认值）──
@@ -103,9 +103,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; ═══════════════════════════════════════════════════════════════════════════
 [Files]
 ; dist/app 已包含全部运行文件：exe 启动器、_internal 依赖、WinSweep.pyw、
-; resources/（Optimization + Win11Debloat）、icon.ico、README.md，以及可选的 index.html。
+; resources/（Optimization + Win11Debloat + BCUninstaller）、icon.ico、README.md、
+; index.html 及其截图（可选）。
 ; 安装内容与「免安装运行目录」完全一致，因此这里只需一行，
 ; 避免安装清单与源目录两处维护、遗漏文件。
+; 注意：resources/BCUninstaller 需要目标机安装 .NET 8 Desktop 运行时，
+;       缺失时主程序其余功能不受影响，仅该入口标灰提示。
 Source: "{#AppStageDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; ═══════════════════════════════════════════════════════════════════════════
@@ -130,14 +133,18 @@ Type: filesandordirs; Name: "{app}\__pycache__"
 
 ; ═══════════════════════════════════════════════════════════════════════════
 [Code]
-// 卸载时询问是否保留用户数据（data/ 保存字体缩放、当前视图、日志等偏好）
+// 卸载时询问是否保留用户数据：
+//   data/                        字体缩放、视图、日志等 WinSweep 偏好
+//   resources/BCUninstaller/     BCU 便携配置（首次运行生成，含卸载列表缓存等）
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   DataDir: String;
+  BcuConfigDir: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
     DataDir := ExpandConstant('{app}\data');
+    BcuConfigDir := ExpandConstant('{app}\resources\BCUninstaller\BCUninstaller');
     if DirExists(DataDir) then
     begin
       if MsgBox('是否同时删除配置与日志？' + #13#10 + #13#10 +
@@ -147,5 +154,7 @@ begin
                 mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
         DelTree(DataDir, True, True, True);
     end;
+    if DirExists(BcuConfigDir) then
+      DelTree(BcuConfigDir, True, True, True);  // BCU 便携配置随程序卸载一并清除
   end;
 end;

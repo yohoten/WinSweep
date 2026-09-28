@@ -492,6 +492,15 @@ def ensure_pyinstaller():
 def run_pyinstaller(meta, onefile, upx_dir):
     step("PyInstaller 打包 exe")
 
+    # WinSweep.pyw 用到的全部非 tkinter 标准库（含 v3.5 新增 winreg）。
+    # launcher 通过 exec 执行外置 .pyw 源码，PyInstaller 静态分析看不到
+    # 这些 import（对 exe 而言是“隐形”的），必须全部显式声明，否则运行时
+    # 报 ModuleNotFoundError（曾因缺 glob 导致打包版启动即崩）。
+    runtime_stdlib = (
+        "glob", "json", "math", "shutil", "stat", "subprocess",
+        "threading", "time", "ctypes", "winreg", "tempfile", "queue",
+    )
+
     args = [
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
@@ -508,7 +517,12 @@ def run_pyinstaller(meta, onefile, upx_dir):
         "--hidden-import", "tkinter.font",
         "--hidden-import", "tkinter.filedialog",
         "--hidden-import", "tkinter.messagebox",
-        # 内嵌一份源码作兜底：仅拷贝 exe 时仍能提示或运行
+    ]
+    # 主程序标准库依赖（见上方注释）
+    for module in runtime_stdlib:
+        args += ["--hidden-import", module]
+    # 内嵌一份源码作兜底：仅拷贝 exe 时仍能提示或运行
+    args += [
         "--add-data", f"{APP_SCRIPT}{os.pathsep}.",
         str(LAUNCHER_SRC),
     ]
@@ -533,7 +547,11 @@ def stage_app(onefile, include_landing):
 
     dist/app 既是「免安装运行目录」，也是安装包的唯一内容来源，
     避免安装包文件清单与源目录两处维护、遗漏文件。
-    注意：不复制 data/（本机偏好与日志），程序首次运行会自行创建。
+    注意：
+      · 不复制 data/（本机偏好与日志），程序首次运行会自行创建
+      · resources/BCUninstaller/ 内 BCU 首次运行生成的便携配置（*.ini）不剔除，
+        程序自身管理；源目录中不存在该目录时整体跳过
+      · include_landing 时 index.html 引用的本地截图一并分发
     """
     step("暂存运行目录 dist/app")
     if STAGE_DIR.exists():
@@ -566,6 +584,11 @@ def stage_app(onefile, include_landing):
         warn("缺少 README.md —— 程序「关于」视图的「打开 README」将不可用")
     if include_landing and LANDING_PAGE.is_file():
         externals.append((LANDING_PAGE, LANDING_PAGE.name))
+        # 落地页引用的本地截图一并分发（缺失时页面自动回退旧外链图）
+        for shot in PREVIEW_IMAGES:
+            shot_path = PROJECT_DIR / shot
+            if shot_path.is_file():
+                externals.append((shot_path, shot))
 
     for src, name in externals:
         target = STAGE_DIR / name
@@ -574,6 +597,12 @@ def stage_app(onefile, include_landing):
         else:
             shutil.copy2(str(src), str(target))
         info(f"+ {name}")
+
+    # 3) resources 分项体积报告
+    for sub in ("Optimization", "Win11Debloat", "BCUninstaller"):
+        sub_staged = STAGE_DIR / "resources" / sub
+        if sub_staged.is_dir():
+            info(f"  └ resources/{sub}/（{human_size(sub_staged)}）")
 
     ok(f"{STAGE_DIR.relative_to(PROJECT_DIR)}（{human_size(STAGE_DIR)}）")
 
@@ -726,6 +755,19 @@ def check_sources(onefile):
     if not RES_DIR.is_dir():
         fail(f"缺少资源目录：{RES_DIR}")
     ok(f"资源目录 resources/（{human_size(RES_DIR)}）")
+    # 各资源子目录分项报告
+    for sub in ("Optimization", "Win11Debloat", "BCUninstaller"):
+        sub_path = RES_DIR / sub
+        if sub_path.is_dir():
+            ok(f"  resources/{sub}/（{human_size(sub_path)}）")
+        elif sub == "BCUninstaller":
+            warn("缺少 resources/BCUninstaller/ ——「批量卸载」入口将标灰提示")
+            info("  获取方式见 archive/BCUninstaller-src（源码含编译补丁，dotnet publish 重新编译）")
+        else:
+            fail(f"缺少必需资源目录：{sub_path}")
+    # BCU 运行时依赖提示（不阻断打包，仅提醒分发场景）
+    if BCU_EXE.is_file():
+        info("BCUninstaller 为框架依赖版，目标机需安装 .NET 8 Desktop 运行时")
     if not README_FILE.is_file():
         warn("缺少 README.md ——「关于」视图的「打开 README」将不可用")
     if not CHINESE_ISL.is_file():
