@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WinSweep v3.4 - 系统垃圾清理工具 (.pyw)
+WinSweep v3.6 - 系统垃圾清理工具 (.pyw)
 图形界面版本，双击运行无控制台窗口。
 需要管理员权限，如未提权会自动请求。
+
+v3.6 更新（内置 Bulk Crap Uninstaller）：
+  * 内置开源批量卸载工具 Bulk Crap Uninstaller（Apache-2.0，本地编译），
+    「系统工具」新增启动入口：大批量卸载应用、清理卸载残留、检测孤儿程序
+  * 界面自带简体中文（zh-Hans），独立窗口运行；需要 .NET 8 Desktop 运行时
+
+v3.5 更新（集成 Winslop）：
+  * 新增「开关精简」视图：原 Winslop（C#）项目功能全量移植为内置注册表开关，
+    分 7 类共 52 项（广告 / AI / Edge / 隐私 / 游戏性能 / 系统调整 / 界面个性化），
+    每项支持 检测 / 应用推荐值 / 还原默认值，全部可逆
+  * 顶部提供 一键应用全部 / 一键还原全部 / 重新检测；状态三态：
+    已应用（绿）/ 默认（灰）/ 自定义值（黄）
+  * 「系统工具」新增 Winget 应用更新（检查 + 终端内全部更新，来自 Winslop）
 
 v3.4 更新（UI 与显示全面重构）：
   * 修复布局缺陷：旧版日志区 expand 抢占全部空间，窗口高度不足时「系统」按钮组与
@@ -43,6 +56,7 @@ import subprocess
 import threading
 import time
 import ctypes
+import winreg
 import tempfile
 from queue import Queue, Empty
 from tkinter import filedialog
@@ -51,16 +65,22 @@ from tkinter import ttk, messagebox
 from tkinter import font as tkfont
 
 APP_NAME    = "WinSweep"
-APP_VERSION = "3.4"
+APP_VERSION = "3.6"
 APP_TAGLINE = "系统垃圾清理 · 一站式优化"
 
 # ────────────── 项目路径（统一基础常量：资源与运行时数据分层） ──────────────
 APP_DIR  = os.path.dirname(os.path.abspath(__file__))
-RES_DIR  = os.path.join(APP_DIR, "resources")     # 资源目录（Optimization / Win11Debloat）
+RES_DIR  = os.path.join(APP_DIR, "resources")     # 资源目录（Optimization / Win11Debloat / BCUninstaller）
 DATA_DIR = os.path.join(APP_DIR, "data")          # 运行时数据（自动生成）
 os.makedirs(DATA_DIR, exist_ok=True)
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 LOG_DIR       = os.path.join(DATA_DIR, "logs")
+
+# ────────────── Bulk Crap Uninstaller 批量卸载工具路径 ──────────────
+# 官方开源项目（Apache-2.0），本地编译内置到 resources/BCUninstaller/ 子目录
+# 界面自带简体中文（zh-Hans），中文系统下自动显示
+BCU_DIR  = os.path.join(RES_DIR, "BCUninstaller")
+BCU_EXE  = os.path.join(BCU_DIR, "BCUninstaller.exe")
 
 # ────────────── Win11Debloat 系统预装清理路径 ──────────────
 # 已内置到 resources/Win11Debloat/ 子目录（自包含，可整体移动）
@@ -210,6 +230,7 @@ VIEWS = [
     ("overview", "◈", "概览",     "磁盘状态 · 一键清理",                 "磁盘与快捷入口"),
     ("clean",    "▣", "缓存清理", "14 项清理 · 快速 / 深度 / 自定义",     "快速 / 深度 / 自定义"),
     ("debloat",  "◉", "预装清理", "Win11Debloat 预设与图形界面",         "预设与图形界面"),
+    ("toggles",  "⊘", "开关精简", "Winslop 52 项注册表开关 · 可还原",    "52 项 · 一键应用"),
     ("optimize", "⚙", "系统优化", "Neon 优化包 · 危险分级",             "10 项 · 危险分级"),
     ("tools",    "✦", "系统工具", "还原点 · DISM · sfc · chkdsk",       "还原点 / DISM / sfc"),
     ("about",    "ⓘ", "关于",     "版本 · 快捷键 · 免责声明",           "版本与说明"),
@@ -1308,6 +1329,369 @@ def opt_execute(log, item, label, fname, kind):
     except Exception as e:
         log("error", f"[系统优化] 执行失败 {fname}: {e}")
 
+
+# ────────────── 开关精简（原 Winslop 项目移植，v3.5 集成） ──────────────
+# 数据来源：Winslop（C# WinForms）Features/*/*.cs，全部为注册表 DWORD/SZ 开关。
+# 每项 ops: [(hive, 子键, 值名, 类型, 应用值, 还原值)]；类型 "dword" | "sz"
+# 特殊项：kind="ctxmenu"（完整右键菜单，写/删 CLSID 键）；cmd_apply/cmd_undo 附加命令；
+# restart_explorer=True 应用/还原后重启资源管理器。
+SLOP_CATS = [
+    ("ads",     "广告与推广",  "#F59E0B"),
+    ("ai",      "AI 功能",     "#8B5CF6"),
+    ("edge",    "Edge 浏览器", "#39C5E0"),
+    ("privacy", "隐私",        "#37D67A"),
+    ("gaming",  "游戏性能",    "#FF6B6B"),
+    ("system",  "系统调整",    "#3B82F6"),
+    ("ui",      "界面个性化",  "#A78BFA"),
+]
+
+_CDM   = r"Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager"
+_ADV   = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced"
+_EDGE_LM = r"Software\Policies\Microsoft\Edge"
+
+SLOP_ITEMS = [
+    # ── 广告与推广 ──
+    {"key": "ad_fileexp",   "cat": "ads", "name": "关闭文件资源管理器广告",
+     "ops": [("HKCU", _ADV, "ShowSyncProviderNotifications", "dword", 0, 1)]},
+    {"key": "ad_finish",    "cat": "ads", "name": "关闭完成安装向导广告",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\UserProfileEngagement",
+              "ScoobeSystemSettingEnabled", "dword", 0, 1)]},
+    {"key": "ad_lockscreen", "cat": "ads", "name": "关闭锁屏提示与广告",
+     "ops": [("HKCU", _CDM, "RotatingLockScreenOverlayEnabled", "dword", 0, 1),
+             ("HKCU", _CDM, "SubscribedContent-338387Enabled", "dword", 0, 1)]},
+    {"key": "ad_personal",  "cat": "ads", "name": "关闭个性化广告",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo",
+              "Enabled", "dword", 0, 1)]},
+    {"key": "ad_settings",  "cat": "ads", "name": "关闭设置应用广告",
+     "ops": [("HKCU", _CDM, "SubscribedContent-338393Enabled", "dword", 0, 1),
+             ("HKCU", _CDM, "SubscribedContent-353694Enabled", "dword", 0, 1),
+             ("HKCU", _CDM, "SubscribedContent-353696Enabled", "dword", 0, 1)]},
+    {"key": "ad_startmenu", "cat": "ads", "name": "关闭开始菜单广告（推荐内容）",
+     "ops": [("HKCU", _ADV, "Start_IrisRecommendations", "dword", 0, 1)]},
+    {"key": "ad_tailored",  "cat": "ads", "name": "关闭定制体验",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Privacy",
+              "TailoredExperiencesWithDiagnosticDataEnabled", "dword", 0, 1)]},
+    {"key": "ad_tips",      "cat": "ads", "name": "关闭常规提示与广告",
+     "ops": [("HKCU", _CDM, "SubscribedContent-338389Enabled", "dword", 0, 1)]},
+    {"key": "ad_welcome",   "cat": "ads", "name": "关闭欢迎体验广告",
+     "ops": [("HKCU", _CDM, "SubscribedContent-310093Enabled", "dword", 0, 1)]},
+
+    # ── AI 功能 ──
+    {"key": "ai_clicktodo", "cat": "ai", "name": "关闭 Click to Do", "danger": "low",
+     "tip": "仅 Copilot+ PC（24H2+）生效，同时移除右键菜单入口",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\Shell\ClickToDo",
+              "DisableClickToDo", "dword", 1, 0)]},
+    {"key": "ai_copilot",   "cat": "ai", "name": "在任务栏中隐藏 Copilot",
+     "ops": [("HKCU", r"Software\Policies\Microsoft\Windows\WindowsCopilot",
+              "TurnOffWindowsCopilot", "dword", 1, 0)]},
+    {"key": "ai_recall",    "cat": "ai", "name": "关闭 Windows 11 的 Recall", "danger": "medium",
+     "tip": "系统级禁用 Recall 快照功能，保护隐私",
+     "ops": [("HKLM", r"Software\Policies\Microsoft\Windows\WindowsAI",
+              "AllowRecallEnablement", "dword", 0, 1)]},
+
+    # ── Edge 浏览器 ──
+    {"key": "edge_signin",     "cat": "edge", "name": "禁用浏览器登录与同步服务",
+     "ops": [("HKLM", _EDGE_LM, "BrowserSignin", "dword", 0, 1)]},
+    {"key": "edge_topsites",   "cat": "edge", "name": "不在新标签页显示赞助链接",
+     "ops": [("HKLM", _EDGE_LM, "NewTabPageHideDefaultTopSites", "dword", 1, 0)]},
+    {"key": "edge_defaultbr",  "cat": "edge", "name": "禁用 Edge 设为默认浏览器提示",
+     "ops": [("HKLM", _EDGE_LM, "DefaultBrowserSettingEnabled", "dword", 0, 1)]},
+    {"key": "edge_collections","cat": "edge", "name": "禁用 Edge 集锦功能",
+     "ops": [("HKLM", _EDGE_LM, "EdgeCollectionsEnabled", "dword", 0, 1)]},
+    {"key": "edge_shopping",   "cat": "edge", "name": "关闭购物助手",
+     "ops": [("HKLM", _EDGE_LM, "EdgeShoppingAssistantEnabled", "dword", 0, 1)]},
+    {"key": "edge_firstrun",   "cat": "edge", "name": "不显示首次运行体验",
+     "ops": [("HKLM", _EDGE_LM, "HideFirstRunExperience", "dword", 1, 0)]},
+    {"key": "edge_gamermode",  "cat": "edge", "name": "关闭 Edge 游戏模式",
+     "ops": [("HKLM", _EDGE_LM, "GamerModeEnabled", "dword", 0, 1)]},
+    {"key": "edge_copilot",    "cat": "edge", "name": "关闭 Edge 中的 Copilot 图标",
+     "ops": [("HKCU", r"Software\Policies\Microsoft\Edge", "HubsSidebarEnabled", "dword", 0, 1)]},
+    {"key": "edge_import",     "cat": "edge", "name": "启动时不导入其他浏览器数据",
+     "ops": [("HKLM", _EDGE_LM, "ImportOnEachLaunch", "dword", 0, 1)]},
+    {"key": "edge_boost",      "cat": "edge", "name": "禁用启动加速（后台常驻）",
+     "ops": [("HKLM", _EDGE_LM, "StartupBoostEnabled", "dword", 0, 1)]},
+    {"key": "edge_quicklinks", "cat": "edge", "name": "不在新标签页显示快捷链接",
+     "ops": [("HKLM", _EDGE_LM, "NewTabPageQuickLinksEnabled", "dword", 0, 1)]},
+    {"key": "edge_feedback",   "cat": "edge", "name": "不显示提交用户反馈选项",
+     "ops": [("HKLM", _EDGE_LM, "UserFeedbackAllowed", "dword", 0, 1)]},
+
+    # ── 隐私 ──
+    {"key": "pv_activity",  "cat": "privacy", "name": "关闭活动历史记录",
+     "ops": [("HKLM", r"Software\Policies\Microsoft\Windows\System",
+              "PublishUserActivities", "dword", 0, 1)]},
+    {"key": "pv_location",  "cat": "privacy", "name": "关闭位置跟踪",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\LocationAndSensors",
+              "LocationEnabled", "dword", 0, 1)]},
+    {"key": "pv_oobe",      "cat": "privacy", "name": "关闭登录时的隐私设置体验",
+     "ops": [("HKLM", r"Software\Policies\Microsoft\Windows\OOBE",
+              "DisablePrivacyExperience", "dword", 1, 0)]},
+    {"key": "pv_telemetry", "cat": "privacy", "name": "关闭 Telemetry 数据收集", "danger": "medium",
+     "tip": "同时禁用遥测策略与 DiagTrack 服务，需重启生效",
+     "ops": [("HKLM", r"Software\Policies\Microsoft\Windows\DataCollection",
+              "AllowTelemetry", "dword", 0, 1),
+             ("HKLM", r"SYSTEM\CurrentControlSet\Services\DiagTrack",
+              "Start", "dword", 4, 2)]},
+
+    # ── 游戏性能 ──
+    {"key": "gm_dvr",     "cat": "gaming", "name": "禁用 Game DVR（后台录制）", "danger": "medium",
+     "tip": "关闭游戏录制与全屏优化，影响 Xbox Game Bar 录制功能",
+     "ops": [("HKCU", r"System\GameConfigStore", "GameDVR_Enabled", "dword", 0, 1),
+             ("HKCU", r"System\GameConfigStore", "GameDVR_FSEBehaviorMode", "dword", 2, 0),
+             ("HKLM", r"Software\Microsoft\PolicyManager\default\ApplicationManagement\AllowGameDVR",
+              "value", "dword", 0, 1)]},
+    {"key": "gm_throttle","cat": "gaming", "name": "禁用 Power Throttling", "danger": "medium",
+     "tip": "关闭后台进程降频，帧数更稳但笔记本续航可能下降",
+     "ops": [("HKLM", r"SYSTEM\CurrentControlSet\Control\Power\PowerThrottling",
+              "PowerThrottlingOff", "dword", 1, 0)]},
+    {"key": "gm_visualfx","cat": "gaming", "name": "关闭视觉效果（最佳性能）",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects",
+              "VisualFXSetting", "dword", 0, 2)]},
+
+    # ── 系统调整 ──
+    {"key": "sy_bsod",     "cat": "system", "name": "显示 BSOD 详细错误而非哭脸",
+     "ops": [("HKLM", r"SYSTEM\CurrentControlSet\Control\CrashControl",
+              "DisplayParameters", "dword", 1, 0),
+             ("HKLM", r"SYSTEM\CurrentControlSet\Control\CrashControl",
+              "DisableEmoticon", "dword", 1, 0)]},
+    {"key": "sy_hibernate","cat": "system", "name": "禁用休眠（释放 hiberfil.sys）", "danger": "medium",
+     "tip": "写入电源策略并执行 powercfg /hibernate off，可释放约内存大小的磁盘空间",
+     "ops": [("HKLM", r"SYSTEM\CurrentControlSet\Control\Power", "HibernateEnabled", "dword", 0, 1),
+             ("HKLM", r"Software\Microsoft\Windows\CurrentVersion\Explorer\FlyoutMenuSettings",
+              "ShowHibernateOption", "dword", 0, 1)],
+     "cmd_apply": ["powercfg", "/hibernate", "off"],
+     "cmd_undo":  ["powercfg", "/hibernate", "on"]},
+    {"key": "sy_menudelay","cat": "system", "name": "加快菜单显示延迟",
+     "ops": [("HKCU", r"Control Panel\Desktop", "MenuShowDelay", "sz", "10", "400")]},
+    {"key": "sy_netlimit", "cat": "system", "name": "禁用网络限流（多媒体策略）", "danger": "medium",
+     "tip": "NetworkThrottlingIndex=0xFFFFFFFF，改善网络突发流量",
+     "ops": [("HKLM", r"Software\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+              "NetworkThrottlingIndex", "dword", 0xFFFFFFFF, 10)]},
+    {"key": "sy_shutdown", "cat": "system", "name": "加快关机速度", "danger": "medium",
+     "tip": "服务强制结束超时 5000ms→1000ms，个别服务可能来不及保存数据",
+     "ops": [("HKLM", r"SYSTEM\CurrentControlSet\Control",
+              "WaitToKillServiceTimeout", "sz", "1000", "5000")]},
+    {"key": "sy_response", "cat": "system", "name": "优化系统响应速度", "danger": "medium",
+     "tip": "SystemResponsiveness=10（默认 20），前台响应更快",
+     "ops": [("HKLM", r"Software\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile",
+              "SystemResponsiveness", "dword", 10, 20)]},
+    {"key": "sy_endtask",  "cat": "system", "name": "启用 End Task（任务栏结束进程）",
+     "ops": [("HKCU", _ADV + r"\TaskbarDeveloperSettings", "TaskbarEndTask", "dword", 1, 0)]},
+    {"key": "sy_verbose",  "cat": "system", "name": "启用详细登录状态信息",
+     "ops": [("HKLM", r"Software\Microsoft\Windows\CurrentVersion\Policies\System",
+              "VerboseStatus", "dword", 1, 0)]},
+
+    # ── 界面个性化 ──
+    {"key": "ui_bing",      "cat": "ui", "name": "禁用 Bing 搜索（开始菜单/搜索）",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Search",
+              "BingSearchEnabled", "dword", 0, 1)]},
+    {"key": "ui_darkapp",   "cat": "ui", "name": "为应用启用深色模式",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+              "AppsUseLightTheme", "dword", 0, 1)]},
+    {"key": "ui_darksys",   "cat": "ui", "name": "为系统启用深色模式",
+     "tip": "应用/还原后会自动重启资源管理器",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+              "SystemUsesLightTheme", "dword", 0, 1)],
+     "restart_explorer": True},
+    {"key": "ui_ctxmenu",   "cat": "ui", "name": "Win11 显示完整右键菜单", "kind": "ctxmenu",
+     "tip": "创建/删除 CLSID 键，还原后恢复新版精简菜单",
+     "ops": [("HKCU", r"Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}", "", "", "", "")]},
+    {"key": "ui_lockscreen","cat": "ui", "name": "不使用个性化锁屏", "danger": "medium",
+     "tip": "系统级策略，锁屏将变为纯色背景",
+     "ops": [("HKLM", r"Software\Policies\Microsoft\Windows\Personalization",
+              "NoLockScreen", "dword", 1, 0)]},
+    {"key": "ui_suggest",   "cat": "ui", "name": "禁用搜索框建议",
+     "ops": [("HKCU", r"Software\Policies\Microsoft\Windows\Explorer",
+              "DisableSearchBoxSuggestions", "dword", 1, 0)]},
+    {"key": "ui_searchbox", "cat": "ui", "name": "隐藏任务栏搜索框",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Search",
+              "SearchboxTaskbarMode", "dword", 0, 2)]},
+    {"key": "ui_mostused",  "cat": "ui", "name": "在开始菜单隐藏常用应用",
+     "ops": [("HKLM", r"Software\Policies\Microsoft\Windows\Explorer",
+              "ShowOrHideMostUsedApps", "dword", 2, 1)]},
+    {"key": "ui_taskview",  "cat": "ui", "name": "隐藏任务栏任务视图按钮",
+     "ops": [("HKCU", _ADV, "ShowTaskViewButton", "dword", 0, 1)]},
+    {"key": "ui_snapassist","cat": "ui", "name": "禁用 Snap Assist 布局浮窗",
+     "ops": [("HKCU", _ADV, "EnableSnapAssistFlyout", "dword", 0, 1)]},
+    {"key": "ui_startlayout","cat": "ui", "name": "在开始菜单固定更多应用",
+     "ops": [("HKCU", _ADV, "Start_Layout", "dword", 1, 0)]},
+    {"key": "ui_align",     "cat": "ui", "name": "将开始按钮左对齐",
+     "ops": [("HKCU", _ADV, "TaskbarAl", "dword", 0, 1)]},
+    {"key": "ui_transparent","cat": "ui", "name": "禁用透明效果",
+     "ops": [("HKCU", r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+              "EnableTransparency", "dword", 0, 1)]},
+]
+SLOP_BY_KEY = {it["key"]: it for it in SLOP_ITEMS}
+_SLOP_HIVES = {"HKCU": winreg.HKEY_CURRENT_USER, "HKLM": winreg.HKEY_LOCAL_MACHINE}
+
+
+def _reg_read(hive, subkey, name):
+    """读取注册表值；键/值不存在返回 None"""
+    try:
+        with winreg.OpenKey(_SLOP_HIVES[hive], subkey, 0, winreg.KEY_QUERY_VALUE) as k:
+            return winreg.QueryValueEx(k, name)[0]
+    except OSError:
+        return None
+
+
+def _reg_write(hive, subkey, name, vtype, value):
+    """写入注册表值（自动创建键）"""
+    reg_type = winreg.REG_SZ if vtype == "sz" else winreg.REG_DWORD
+    with winreg.CreateKeyEx(_SLOP_HIVES[hive], subkey, 0, winreg.KEY_SET_VALUE) as k:
+        winreg.SetValueEx(k, name, 0, reg_type, value)
+
+
+def _reg_delete_tree(hive, subkey):
+    """递归删除子键树"""
+    root = _SLOP_HIVES[hive]
+    try:
+        with winreg.OpenKey(root, subkey, 0, winreg.KEY_ENUMERATE_SUB_KEYS | winreg.KEY_QUERY_VALUE) as k:
+            names = []
+            i = 0
+            while True:
+                try:
+                    names.append(winreg.EnumKey(k, i))
+                    i += 1
+                except OSError:
+                    break
+        for n in names:
+            _reg_delete_tree(hive, subkey + "\\" + n)
+        winreg.DeleteKey(root, subkey)
+        return True
+    except OSError:
+        return False
+
+
+def slop_state(item):
+    """检测开关状态：applied=已应用 / default=默认 / custom=自定义值"""
+    if item.get("kind") == "ctxmenu":
+        hive, subkey = item["ops"][0][0], item["ops"][0][1]
+        return "applied" if _reg_read(hive, subkey + r"\InprocServer32", "") is not None else "default"
+    vals = [_reg_read(h, p, n) for h, p, n, _t, _a, _u in item["ops"]]
+    applies = [op[4] for op in item["ops"]]
+    undos = [op[5] for op in item["ops"]]
+    if all(v == a for v, a in zip(vals, applies)):
+        return "applied"
+    if all((v is None) or (v == u) for v, u in zip(vals, undos)):
+        return "default"
+    return "custom"
+
+
+def _slop_set(log, item, mode):
+    """mode='apply' 写推荐值 / 'undo' 还原默认值，返回是否成功"""
+    prefix = "[开关精简]"
+    ok = True
+    for hive, subkey, name, vtype, apply_v, undo_v in item["ops"]:
+        if item.get("kind") == "ctxmenu":
+            try:
+                if mode == "apply":
+                    _reg_write(hive, subkey + r"\InprocServer32", "", "sz", "")
+                else:
+                    _reg_delete_tree(hive, subkey)
+                log("info", f"  {'创建' if mode == 'apply' else '删除'}注册表键：{hive}\\{subkey}")
+            except OSError as e:
+                ok = False
+                log("error", f"  注册表键操作失败：{e}")
+            continue
+        value = apply_v if mode == "apply" else undo_v
+        try:
+            _reg_write(hive, subkey, name, vtype, value)
+            shown = f'"{value}"' if vtype == "sz" else value
+            log("info", f"  {hive}\\{subkey} → {name} = {shown}")
+        except OSError as e:
+            ok = False
+            log("error", f"  写入失败 {hive}\\{subkey}\\{name}: {e}")
+    cmd = item.get("cmd_apply" if mode == "apply" else "cmd_undo")
+    if cmd:
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            log("info", f"  执行命令：{' '.join(cmd)}"
+                        + ("" if r.returncode == 0 else f"（退出码 {r.returncode}）"))
+        except Exception as e:
+            ok = False
+            log("error", f"  命令执行失败：{e}")
+    if ok and item.get("restart_explorer"):
+        try:
+            subprocess.run("taskkill /f /im explorer.exe", shell=True, capture_output=True)
+            subprocess.Popen("explorer.exe", shell=True)
+            log("info", "  已重启资源管理器使设置生效")
+        except Exception as e:
+            log("warning", f"  重启资源管理器失败：{e}")
+    return ok
+
+
+def slop_apply(log, item):
+    """应用推荐值"""
+    name = item["name"]
+    log("cyan", "━━━━━━ 开关精简 ━━━━━━")
+    log("info", f"  应用：{name}")
+    if _slop_set(log, item, "apply"):
+        log("success", f"✔ 已应用：{name}（部分设置需注销/重启或重启资源管理器后生效）")
+        return True
+    log("error", f"✘ 应用失败：{name}")
+    return False
+
+
+def slop_undo(log, item):
+    """还原默认值"""
+    name = item["name"]
+    log("cyan", "━━━━━━ 开关精简 ━━━━━━")
+    log("info", f"  还原：{name}")
+    if _slop_set(log, item, "undo"):
+        log("success", f"✔ 已还原默认：{name}")
+        return True
+    log("error", f"✘ 还原失败：{name}")
+    return False
+
+
+def slop_check_all(log=None):
+    """批量检测全部开关，返回 {key: state}"""
+    states = {it["key"]: slop_state(it) for it in SLOP_ITEMS}
+    if log:
+        n_applied = sum(1 for s in states.values() if s == "applied")
+        log("info", f"[开关精简] 检测完成：{n_applied}/{len(SLOP_ITEMS)} 项已应用推荐值")
+    return states
+
+
+def slop_apply_all(log):
+    """一键应用全部未应用项（跳过已应用与自定义）"""
+    log("cyan", "━━━━━━ 开关精简：一键应用 ━━━━━━")
+    done = skipped = failed = 0
+    for it in SLOP_ITEMS:
+        state = slop_state(it)
+        if state == "applied":
+            skipped += 1
+            continue
+        if state == "custom":
+            log("warning", f"  跳过自定义值项：{it['name']}（请单独处理）")
+            skipped += 1
+            continue
+        log("info", f"  应用：{it['name']}")
+        if _slop_set(log, it, "apply"):
+            done += 1
+        else:
+            failed += 1
+    log("success", f"✔ 一键应用完成：成功 {done} · 跳过 {skipped} · 失败 {failed}")
+    return failed == 0
+
+
+def slop_undo_all(log):
+    """一键还原全部已应用项"""
+    log("cyan", "━━━━━━ 开关精简：一键还原 ━━━━━━")
+    done = skipped = failed = 0
+    for it in SLOP_ITEMS:
+        state = slop_state(it)
+        if state != "applied":
+            skipped += 1
+            continue
+        log("info", f"  还原：{it['name']}")
+        if _slop_set(log, it, "undo"):
+            done += 1
+        else:
+            failed += 1
+    log("success", f"✔ 一键还原完成：还原 {done} · 跳过 {skipped} · 失败 {failed}")
+    return failed == 0
+
+
 # ────────────── 滚动容器（视图通用） ──────────────
 class ScrollArea(tk.Frame):
     """滚轮按指针命中测试生效，替代旧版 bind_all 抢占全局滚轮的写法"""
@@ -1471,14 +1855,15 @@ class WinSweepApp:
             pass
 
     def _set_icon(self):
-        """优先 icon.ico；否则用内置逐像素扫帚图标（零外部依赖）"""
-        ico = os.path.join(APP_DIR, "icon.ico")
-        if os.path.exists(ico):
-            try:
-                self.root.iconbitmap(ico)
-                return
-            except Exception:
-                pass
+        """优先 icon.ico → winsweep.ico 兜底；否则用内置逐像素扫帚图标（零外部依赖）"""
+        for ico_name in ("icon.ico", "winsweep.ico"):
+            ico = os.path.join(APP_DIR, ico_name)
+            if os.path.exists(ico):
+                try:
+                    self.root.iconbitmap(ico)
+                    return
+                except Exception:
+                    pass
         try:
             self.root.iconphoto(True, self._draw_icon())
         except Exception:
@@ -1619,7 +2004,7 @@ class WinSweepApp:
         right = tk.Frame(row1, bg=BG1)
         right.pack(side="right")
         for key, tip in (("F5 刷新", "刷新磁盘与概览信息"),
-                         ("Alt+1~6", "切换左侧视图"),
+                         ("Alt+1~7", "切换左侧视图"),
                          ("Ctrl+L", "清空日志"),
                          ("Ctrl+F", "搜索日志")):
             c = chip(right, key, fg=FG_MUTE, bg=BG3, border=LINE, font=FONT["tiny"], padx=7, pady=2)
@@ -2273,6 +2658,8 @@ class WinSweepApp:
                 self._end_task_ui(*data)
             elif tag == "__done__":
                 self._apply_done(data)
+            elif tag == "__slop__":
+                self._slop_paint_all(data)
             else:
                 self._append_record((time.strftime("%H:%M:%S"), tag, str(data)))
         self.root.after(QUEUE_POLL_MS, self.process_queue)
@@ -2484,6 +2871,7 @@ class WinSweepApp:
         self._build_view_overview()
         self._build_view_clean()
         self._build_view_debloat()
+        self._build_view_toggles()
         self._build_view_optimize()
         self._build_view_tools()
         self._build_view_about()
@@ -2636,7 +3024,7 @@ class WinSweepApp:
         row = tk.Frame(parent, bg=bg)
         row.pack(fill="x", pady=(8, 0))
         tk.Label(row, text="快捷键", fg=FG_MUTE, bg=bg, font=FONT["tiny"]).pack(side="left", padx=(0, 8))
-        for t in ("F5 刷新", "Alt+1~6 切换视图", "Ctrl+L 清空日志", "Ctrl+F 搜索",
+        for t in ("F5 刷新", "Alt+1~7 切换视图", "Ctrl+L 清空日志", "Ctrl+F 搜索",
                   "Ctrl+S 保存日志", "Ctrl+J 折叠日志", "Ctrl+= / Ctrl+- 字号"):
             chip(row, t, fg=FG_MUTE, bg=BG3, border=LINE, font=FONT["tiny"], padx=6, pady=1).pack(
                 side="left", padx=(0, 5))
@@ -2863,6 +3251,189 @@ class WinSweepApp:
         if not ok_gui:
             set_button_enabled(b2, False)
 
+    # ────────────── 视图：开关精简（Winslop 移植） ──────────────
+    _SLOP_STATE_TEXT = {
+        "applied": ("✓ 已应用", ACCENT),
+        "default": ("默认", FG_MUTE),
+        "custom":  ("自定义值", AMBER),
+    }
+
+    def _build_view_toggles(self):
+        self.actions_toggles.pack()
+        make_button(self.actions_toggles, "重新检测", self._slop_recheck,
+                    style="ghost", size="sm", color=FG_DIM).pack(side="left")
+        b_all = make_button(self.actions_toggles, "一键应用全部", self._slop_apply_all_confirm,
+                            color=ACCENT, size="sm")
+        b_all.pack(side="left", padx=(6, 0))
+        self._register_action(b_all)
+        b_undo = make_button(self.actions_toggles, "一键还原全部", self._slop_undo_all_confirm,
+                             style="ghost", size="sm", color=FG_DIM)
+        b_undo.pack(side="left", padx=(6, 0))
+        self._register_action(b_undo)
+        self._slop_host = self.body_toggles
+        self._slop_chips = {}
+        self._build_toggles_list()
+        self._slop_recheck(silent=True)
+
+    def _build_toggles_list(self):
+        inner = self._slop_host
+        for w in inner.winfo_children():
+            w.destroy()
+        c, b = self._new_card(inner, bg="#141821")
+        c.pack(fill="x", padx=10, pady=(4, 8))
+        self._card_title(b, "Winslop 注册表开关",
+                         sub=f"{len(SLOP_ITEMS)} 项 · 检测 / 应用 / 还原，全部可逆", accent=CYAN)
+        self._slop_summary = tk.Label(b, text="正在检测当前状态…", fg=FG_DIM,
+                                      bg=str(b.cget("bg")), font=FONT["small"])
+        self._slop_summary.pack(anchor="w", pady=(6, 0))
+        self._note(b, "来源：Winslop 项目（已归档至 archive/Winslop）。「已应用」= 当前值等于推荐值；"
+                      "「默认」= 系统默认；「自定义值」= 已被其他工具修改（批量操作自动跳过）。",
+                   FG_MUTE).pack(anchor="w", pady=(4, 0))
+        self._note(b, "部分项写入 HKLM 系统级注册表；中危项建议先在「系统工具」创建还原点。悬停查看每项的键值详情。",
+                   AMBER).pack(anchor="w")
+
+        for cat_id, cat_name, cat_color in SLOP_CATS:
+            items = [it for it in SLOP_ITEMS if it["cat"] == cat_id]
+            if not items:
+                continue
+            tk.Label(inner, text=f"▎{cat_name}（{len(items)}）", fg=cat_color, bg=BG,
+                     font=FONT["ui_b"]).pack(anchor="w", padx=14, pady=(8, 2))
+            for item in items:
+                self._slop_build_row(inner, item)
+
+    def _slop_build_row(self, parent, item):
+        danger = item.get("danger", "low")
+        dcol = DANGER_COLORS[danger]
+        row = tk.Frame(parent, bg=BG2)
+        row.pack(fill="x", padx=10, pady=2)
+
+        box = tk.Frame(row, bg=BG2)
+        box.pack(side="left", fill="x", expand=True, padx=(12, 8), pady=8)
+        head = tk.Frame(box, bg=BG2)
+        head.pack(fill="x")
+        name_lbl = tk.Label(head, text=item["name"], fg=FG, bg=BG2, font=FONT["ui"])
+        name_lbl.pack(side="left")
+        if danger != "low":
+            chip(head, DANGER_LABELS[danger], fg=dcol, bg=mix(BG2, dcol, 0.16),
+                 font=FONT["tiny"], padx=5, pady=1).pack(side="left", padx=(7, 0))
+        hive, subkey = item["ops"][0][0], item["ops"][0][1]
+        detail = (subkey + r"\InprocServer32") if item.get("kind") == "ctxmenu" else subkey
+        path_lbl = tk.Label(box, text=f"{hive} · {detail}", fg=FG_MUTE, bg=BG2,
+                            font=FONT["mono_s"])
+        path_lbl.pack(anchor="w")
+
+        right = tk.Frame(row, bg=BG2)
+        right.pack(side="right", padx=(8, 12), pady=8)
+        st = chip(right, "未检测", fg=FG_MUTE, bg=BG3, font=FONT["tiny"], padx=7, pady=2)
+        st.pack(side="left", padx=(0, 8))
+        b_undo = make_button(right, "还原", lambda i=item: self._slop_undo_one(i),
+                             style="ghost", size="sm", color=FG_DIM)
+        b_undo.pack(side="left", padx=(0, 5))
+        b_apply = make_button(right, "应用", lambda i=item: self._slop_apply_one(i),
+                              color=dcol if danger == "high" else ACCENT2, size="sm")
+        b_apply.pack(side="left")
+        self._register_action(b_apply)
+        self._register_action(b_undo)
+        self._slop_chips[item["key"]] = st
+        tip = self._slop_tooltip(item)
+        ToolTip(name_lbl, tip)
+        ToolTip(path_lbl, tip)
+
+    @staticmethod
+    def _slop_tooltip(item):
+        lines = [item["name"]]
+        if item.get("tip"):
+            lines.append(item["tip"])
+        lines.append("")
+        if item.get("kind") == "ctxmenu":
+            hive, subkey = item["ops"][0][0], item["ops"][0][1]
+            lines.append(f"{hive}\\{subkey}\\InprocServer32")
+            lines.append("应用=创建键并设空默认值 / 还原=删除整个键")
+        else:
+            for h, p, n, t, a, u in item["ops"]:
+                va, vu = (f'"{a}"', f'"{u}"') if t == "sz" else (str(a), str(u))
+                lines.append(f"{h}\\{p}")
+                lines.append(f"  {n}: 应用 {va} / 还原 {vu}")
+        if item.get("cmd_apply"):
+            lines.append("附加命令：" + " ".join(item["cmd_apply"]))
+        return "\n".join(lines)
+
+    def _slop_recheck(self, silent=False):
+        def work():
+            states = slop_check_all(self.log if not silent else None)
+            self.queue.put(("__slop__", states))
+        if silent:
+            threading.Thread(target=work, daemon=True).start()
+        else:
+            self.run_in_thread(work, "检测开关状态")
+
+    def _slop_paint_all(self, states):
+        for key, state in states.items():
+            self._slop_paint(key, state)
+        total = len(SLOP_ITEMS)
+        n_applied = sum(1 for s in states.values() if s == "applied")
+        n_default = sum(1 for s in states.values() if s == "default")
+        n_custom = sum(1 for s in states.values() if s == "custom")
+        try:
+            self._slop_summary.configure(
+                text=f"当前状态：已应用 {n_applied} · 默认 {n_default} · 自定义值 {n_custom}（共 {total} 项）")
+        except Exception:
+            pass
+
+    def _slop_paint(self, key, state):
+        w = self._slop_chips.get(key)
+        if w is None:
+            return
+        text, fg = self._SLOP_STATE_TEXT.get(state, ("未检测", FG_MUTE))
+        try:
+            w.label.configure(text=text, fg=fg)
+        except Exception:
+            pass
+
+    def _slop_apply_one(self, item):
+        if item.get("danger") == "medium":
+            tip = item.get("tip", "")
+            if not messagebox.askyesno(
+                    "确认执行",
+                    f"将应用：{item['name']}\n\n{tip + chr(10) + chr(10) if tip else ''}"
+                    "该项会修改系统注册表设置（可通过「还原」恢复）。\n是否继续？"):
+                return
+        self.run_in_thread(lambda: self._slop_run_one(item, "apply"), f"开关：{item['name']}")
+
+    def _slop_undo_one(self, item):
+        self.run_in_thread(lambda: self._slop_run_one(item, "undo"), f"还原开关：{item['name']}")
+
+    def _slop_run_one(self, item, mode):
+        fn = slop_apply if mode == "apply" else slop_undo
+        fn(self.log, item)
+        self.queue.put(("__slop__", slop_check_all()))
+
+    def _slop_apply_all_confirm(self):
+        if not messagebox.askyesno(
+                "一键应用全部",
+                f"将把全部 {len(SLOP_ITEMS)} 项开关设为推荐值（跳过已应用与自定义值项）。\n\n"
+                "会批量写入 HKCU / HKLM 注册表；含禁用休眠、遥测、Game DVR 等系统级修改，\n"
+                "部分项需重启资源管理器或重启系统后生效。\n"
+                "建议先在「系统工具 → 创建系统还原点」备份。\n\n是否继续？"):
+            return
+        self.run_in_thread(self._slop_apply_all_run, "开关精简：一键应用", indeterminate=True)
+
+    def _slop_apply_all_run(self):
+        slop_apply_all(self.log)
+        self.queue.put(("__slop__", slop_check_all()))
+
+    def _slop_undo_all_confirm(self):
+        if not messagebox.askyesno(
+                "一键还原全部",
+                "将把全部「已应用」的开关还原为系统默认值。\n\n"
+                "个别项（如休眠、完整右键菜单）还原后需重启资源管理器或重启系统。\n是否继续？"):
+            return
+        self.run_in_thread(self._slop_undo_all_run, "开关精简：一键还原", indeterminate=True)
+
+    def _slop_undo_all_run(self):
+        slop_undo_all(self.log)
+        self.queue.put(("__slop__", slop_check_all()))
+
     # ────────────── 视图：系统优化 ──────────────
     def _build_view_optimize(self):
         self.actions_optimize.pack()
@@ -2952,6 +3523,32 @@ class WinSweepApp:
         self._note(b, "需要系统保护对 C: 已启用；创建约需 10-60 秒，完成后可在「系统属性 → 系统保护」查看/恢复。",
                    FG_MUTE).pack(anchor="w", pady=(6, 0))
 
+        # Bulk Crap Uninstaller 批量卸载（v3.6 内置）
+        bc_ok = os.path.isfile(BCU_EXE)
+        bc, bb = self._new_card(inner, bg="#171426", border="#2A2440")
+        bc.pack(fill="x", padx=10, pady=(10, 0))
+        bhead = self._card_title(bb, "🗑 Bulk Crap Uninstaller 批量卸载",
+                                 sub="应用批量卸载 · 残留清理 · 孤儿检测", accent=PURPLE)
+        chip(bhead, "v3.6 内置" if bc_ok else "组件缺失", fg=PURPLE if bc_ok else RED,
+             bg=mix(BG3, PURPLE, 0.18) if bc_ok else BG3,
+             font=FONT["tiny"], padx=6, pady=1).pack(side="right")
+        self._wrap(bb, "开源批量卸载工具（Apache-2.0）：大批量卸载应用、自动清理卸载残留、"
+                       "检测孤儿程序，支持 Steam 游戏 / 商店应用 / Windows 功能。"
+                       "界面自带简体中文，独立窗口运行，关闭后返回本工具。", fg=FG_DIM)
+        self._note(bb, f"目录  {BCU_DIR}", FG_MUTE, icon="").pack(anchor="w", pady=(6, 0))
+        bflow = FlowFrame(bb, bg=str(bb.cget("bg")), spacing=5)
+        bflow.pack(fill="x", pady=(8, 0))
+        b_bcu = bflow.add(make_button(bflow, "▶ 启动批量卸载", self._launch_bcu, color=PURPLE, size="sm"))
+        b_bdir = bflow.add(make_button(bflow, "📂 打开目录",
+                                       lambda: self._open_path(BCU_DIR),
+                                       style="ghost", size="sm", color=FG_DIM))
+        self._register_action(b_bcu)
+        if not bc_ok:
+            set_button_enabled(b_bcu, False)
+            ToolTip(b_bcu, f"未找到 {BCU_EXE}")
+        if not os.path.isdir(BCU_DIR):
+            set_button_enabled(b_bdir, False)
+
         tools = [
             ("🧹 磁盘清理 (cleanmgr)", "系统自带图形工具，可清理系统文件与旧更新", ACCENT2,
              lambda: self._run_cleanmgr(), "低风险"),
@@ -2974,6 +3571,79 @@ class WinSweepApp:
             btn.pack(anchor="w", pady=(7, 0))
             self._register_action(btn)
 
+        # Winget 应用更新（来自 Winslop）
+        wc, wb = self._new_card(inner, bg="#171426", border="#2A2440")
+        wc.pack(fill="x", padx=10, pady=3)
+        whead = self._card_title(wb, "⬆ Winget 应用更新", sub="检查并列出可用更新", accent=PURPLE)
+        chip(whead, "来自 Winslop", fg=FG_MUTE, bg=BG3,
+             font=FONT["tiny"], padx=6, pady=1).pack(side="right")
+        self._wrap(wb, "「检查更新」在日志区列出全部可升级应用；「全部更新」在独立终端执行 "
+                       "winget upgrade --all --include-unknown，请按终端提示操作。", fg=FG_DIM)
+        wflow = FlowFrame(wb, bg=str(wb.cget("bg")), spacing=5)
+        wflow.pack(fill="x", pady=(7, 0))
+        b_chk = wflow.add(make_button(wflow, "▶ 检查更新", self._winget_check, color=PURPLE, size="sm"))
+        b_up = wflow.add(make_button(wflow, "▶ 全部更新（终端）", self._winget_upgrade,
+                                     style="ghost", size="sm", color=FG_DIM))
+        self._register_action(b_chk)
+        self._register_action(b_up)
+
+    def _launch_bcu(self):
+        """启动内置的 Bulk Crap Uninstaller 批量卸载工具"""
+        if not os.path.isfile(BCU_EXE):
+            messagebox.showerror("缺少组件", f"未找到 BCUninstaller.exe：\n{BCU_EXE}")
+            return
+        try:
+            self.log("cyan", "━━━━━━ 批量卸载 (Bulk Crap Uninstaller) ━━━━━━")
+            self.log("info", "  正在启动 Bulk Crap Uninstaller（独立窗口，界面自动显示中文）…")
+            proc = subprocess.Popen([BCU_EXE], cwd=BCU_DIR)
+            self.log("info", f"  已启动（PID {proc.pid}）。首次运行会扫描已装程序，请稍候。")
+        except Exception as e:
+            self.log("error", f"[批量卸载] 启动失败: {e}")
+
+    def _winget_check(self):
+        self.run_in_thread(self._winget_check_run, "Winget 检查更新", indeterminate=True)
+
+    def _winget_check_run(self):
+        self.log("cyan", "━━━━━━ Winget 应用更新检查 ━━━━━━")
+        try:
+            result = subprocess.run(["winget", "upgrade", "--include-unknown"],
+                                    capture_output=True, text=True, timeout=300)
+            shown = 0
+            for line in (result.stdout or "").splitlines():
+                s = line.rstrip()
+                if not s.strip():
+                    continue
+                if s.lstrip().startswith("-") and set(s.strip()) <= set("- "):
+                    continue
+                self.log("gray", s)
+                shown += 1
+            if shown == 0 and result.stdout and "无可用升级" not in result.stdout:
+                self.log("info", "  （无输出，可能所有应用均为最新版本）")
+            self.log("success" if result.returncode == 0 else "warning",
+                     f"✔ 检查完成（退出码 {result.returncode}）"
+                     if result.returncode == 0 else f"检查结束（退出码 {result.returncode}）")
+        except FileNotFoundError:
+            self.log("error", "[Winget] 未找到 winget 命令（需要「应用安装程序 / App Installer」）")
+        except Exception as e:
+            self.log("error", f"[Winget] 检查失败: {e}")
+
+    def _winget_upgrade(self):
+        if not messagebox.askyesno(
+                "确认执行",
+                "将在独立终端执行：winget upgrade --all --include-unknown\n\n"
+                "更新过程可能较长，请按终端内提示操作。\n是否继续？"):
+            return
+        try:
+            subprocess.Popen('wt.exe -w 0 nt -p "Windows PowerShell" powershell -NoExit '
+                             '-Command "winget upgrade --all --include-unknown"', shell=True)
+            self.log("info", "[Winget] 已在终端启动全部更新")
+        except Exception:
+            try:
+                subprocess.Popen('cmd /k winget upgrade --all --include-unknown', shell=True)
+                self.log("info", "[Winget] 已在命令提示符启动全部更新")
+            except Exception as e:
+                self.log("error", f"[Winget] 启动失败: {e}")
+
     # ────────────── 视图：关于 ──────────────
     def _build_view_about(self):
         inner = self.body_about
@@ -2993,7 +3663,30 @@ class WinSweepApp:
 
         c2, b2 = self._new_card(inner)
         c2.pack(fill="x", padx=10, pady=4)
-        self._card_title(b2, "v3.4 界面与显示改进", accent=ACCENT2)
+        self._card_title(b2, "v3.6 内置 Bulk Crap Uninstaller", accent=PURPLE)
+        for line in (
+            "内置开源批量卸载工具 BCU（Apache-2.0，源码本地编译），「系统工具」新增启动入口",
+            "大批量卸载应用 · 自动清理卸载残留 · 孤儿程序检测，支持 Steam / 商店应用 / Windows 功能",
+            "界面自带简体中文（zh-Hans），独立窗口运行；需要 .NET 8 Desktop 运行时",
+        ):
+            self._wrap(b2, "·  " + line, fg=FG_DIM, pady=(1, 1))
+
+        c25, b25 = self._new_card(inner)
+        c25.pack(fill="x", padx=10, pady=4)
+        self._card_title(b25, "v3.5 集成 Winslop", accent=CYAN)
+        for line in (
+            "新增「开关精简」视图：Winslop（C#）功能全量移植为内置注册表开关，共 52 项",
+            "按 广告 / AI / Edge / 隐私 / 游戏性能 / 系统调整 / 界面个性化 分组，紧凑行式列表",
+            "每项独立 检测 / 应用 / 还原（含完整右键菜单键操作、休眠 powercfg 联动），全部可逆",
+            "顶部一键应用 / 一键还原 / 重新检测；状态三态标注，悬停查看键值详情与还原值",
+            "「系统工具」新增 Winget 应用更新（检查列表 + 终端全部更新）",
+            "原 Winslop 项目源码归档于 archive/Winslop，程序不再依赖外部 Winslop 组件",
+        ):
+            self._wrap(b25, "·  " + line, fg=FG_DIM, pady=(1, 1))
+
+        c3, b3 = self._new_card(inner)
+        c3.pack(fill="x", padx=10, pady=4)
+        self._card_title(b3, "v3.4 界面与显示改进", accent=ACCENT2)
         for line in (
             "布局：修复日志区抢占空间导致底部按钮与状态栏被挤出窗口；改为分区 + 可拖拽分隔条",
             "导航：弹窗功能全部内嵌为视图（清理 / 预装 / 优化 / 工具），滚轮按指针命中区域生效",

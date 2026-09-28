@@ -4,8 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WinSweep — Windows 系统垃圾清理与一站式优化工具</title>
-<meta name="description" content="WinSweep 是一款基于 Python 标准库 tkinter 编写的 Windows 系统垃圾清理与一站式优化工具，双击即用、零第三方依赖，集成 Win11Debloat 与 Neon 优化包，覆盖缓存清理、系统精简、性能优化全流程。" />
-<meta name="keywords" content="WinSweep, Windows 清理, 系统优化, 垃圾清理, Win11Debloat, Neon 优化, 开源" />
+<meta name="description" content="WinSweep 是一款基于 Python 标准库 tkinter 编写的 Windows 系统垃圾清理与一站式优化工具，双击即用、零第三方依赖，集成 Win11Debloat、Winslop 注册表开关、Bulk Crap Uninstaller 批量卸载与 Neon 优化包，覆盖缓存清理、批量卸载、系统精简、性能优化全流程。" />
+<meta name="keywords" content="WinSweep, Windows 清理, 系统优化, 垃圾清理, Win11Debloat, Winslop, Neon 优化, 开源" />
 <meta property="og:title" content="WinSweep — Windows 系统垃圾清理与一站式优化工具" />
 <meta property="og:description" content="双击即用、零第三方依赖的 Windows 清理与优化工具，集成缓存清理、系统精简、性能优化全流程。" />
 <meta property="og:type" content="website" />
@@ -128,6 +128,26 @@
   .hero-meta span { display: inline-flex; align-items: center; gap: 6px; }
   .hero-meta svg { width: 15px; height: 15px; }
 
+  /* 数据统计条 */
+  .stats {
+    margin: 40px auto 0; display: flex; justify-content: center; flex-wrap: wrap;
+    gap: 14px; max-width: 860px;
+  }
+  .stat {
+    flex: 1; min-width: 140px; text-align: center;
+    background: linear-gradient(180deg, var(--card), rgba(18,23,34,.4));
+    border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 20px 12px 18px; transition: border-color .2s, transform .2s;
+  }
+  .stat:hover { border-color: rgba(55,214,122,.4); transform: translateY(-3px); }
+  .stat b {
+    display: block; font-size: 34px; font-weight: 800; line-height: 1.1;
+    background: linear-gradient(120deg, #37d67a, #39c5e0);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat span { display: block; margin-top: 6px; color: var(--text-mute); font-size: 13px; letter-spacing: .5px; }
+
   /* 截图 */
   .shot-wrap { margin-top: 54px; position: relative; }
   .shot {
@@ -148,6 +168,7 @@
   /* 特性网格 */
   .grid { display: grid; gap: 20px; }
   .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
   .grid-2 { grid-template-columns: repeat(2, 1fr); }
   .card {
     background: var(--card); border: 1px solid var(--border);
@@ -168,6 +189,23 @@
     padding: 3px 10px; border-radius: 999px; background: var(--bg-3); color: var(--text-dim);
     border: 1px solid var(--border-soft);
   }
+  .mini-badge {
+    display: inline-block; vertical-align: 3px; margin-left: 6px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1px;
+    padding: 2px 7px; border-radius: 999px;
+    background: linear-gradient(120deg, #8b5cf6, #39c5e0); color: #fff;
+  }
+
+  /* 开关精简分类胶囊行 */
+  .cat-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .cat-pill {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px; border-radius: 999px; font-size: 13.5px; font-weight: 600;
+    background: var(--bg-3); border: 1px solid var(--border); color: var(--text-dim);
+    transition: all .18s;
+  }
+  .cat-pill:hover { border-color: var(--cat, var(--accent)); color: var(--text); transform: translateY(-2px); }
+  .cat-pill b { color: var(--cat, var(--accent)); font-variant-numeric: tabular-nums; }
 
   /* 功能清单 */
   .feature-row {
@@ -288,11 +326,22 @@
   footer .foot-brand .logo { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg,#37d67a,#1fa36a); display: grid; place-items: center; }
   footer .foot-brand .logo svg { width: 13px; height: 13px; }
 
+  @media (max-width: 1200px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 900px) {
-    .grid-3, .grid-2, .steps, .dl-options { grid-template-columns: 1fr; }
+    .grid-3, .grid-2, .grid-4, .steps, .dl-options { grid-template-columns: 1fr; }
     .hero h1 { font-size: 42px; }
     .nav-links a { display: none; }
     .feature-row { flex-direction: column; align-items: flex-start; gap: 14px; }
+    .stats { gap: 10px; }
+    .stat { min-width: calc(50% - 10px); }
+  }
+
+  /* 滚动入场动画 */
+  .reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .reveal { opacity: 1; transform: none; transition: none; }
+    html { scroll-behavior: auto; }
   }
 </style>
 </head>
@@ -311,6 +360,7 @@
     </a>
     <div class="nav-links">
       <a href="#features">功能</a>
+      <a href="#toggles" style="color:#a78bfa;">开关精简</a>
       <a href="#highlight">亮点</a>
       <a href="#download">下载</a>
       <a href="#usage">使用</a>
@@ -326,9 +376,9 @@
 <!-- Hero -->
 <div class="container" id="top">
   <div class="hero">
-    <span class="badge"><span class="dot"></span> v3.4 最新版本 · 开源免费</span>
+    <span class="badge"><span class="dot"></span> v3.6 最新版本 · 开源免费</span>
     <h1>为你的 Windows<br/>做一次<span class="grad">彻底大扫除</span></h1>
-    <p class="sub">WinSweep 是一款基于 Python 标准库 <strong>tkinter</strong> 编写的系统垃圾清理与一站式优化工具——<strong>双击即用，零第三方依赖</strong>。集成 Win11Debloat 与 Neon 优化包，覆盖缓存清理、系统精简、性能优化全流程。</p>
+    <p class="sub">WinSweep 是一款基于 Python 标准库 <strong>tkinter</strong> 编写的系统垃圾清理与一站式优化工具——<strong>双击即用，零第三方依赖</strong>。集成 Win11Debloat、Winslop 注册表开关、<strong>Bulk Crap Uninstaller 批量卸载</strong>与 Neon 优化包，覆盖缓存清理、批量卸载、系统精简、性能优化全流程。</p>
     <div class="cta">
       <a class="btn btn-primary" href="#download">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
@@ -346,8 +396,17 @@
       <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z"/></svg> 危险操作二次确认</span>
     </div>
 
+    <div class="stats">
+      <div class="stat"><b>14</b><span>清理项</span></div>
+      <div class="stat"><b>52</b><span>注册表开关</span></div>
+      <div class="stat"><b>🧹</b><span>批量卸载</span></div>
+      <div class="stat"><b>10</b><span>系统优化项</span></div>
+      <div class="stat"><b>7</b><span>功能视图</span></div>
+      <div class="stat"><b>0</b><span>第三方依赖</span></div>
+    </div>
+
     <div class="shot-wrap">
-      <img class="shot" src="https://picui.ogmua.cn/s1/2026/08/14/6a7f2b178f9b2.webp" alt="WinSweep 界面预览" loading="lazy" />
+      <img class="shot" src="preview.png" alt="WinSweep v3.5 界面预览（含开关精简视图）" loading="lazy" onerror="this.onerror=null;this.src='https://picui.ogmua.cn/s1/2026/08/14/6a7f2b178f9b2.webp'" />
       <div class="shot-ring"></div>
     </div>
   </div>
@@ -359,9 +418,9 @@
     <div class="sec-head">
       <div class="eyebrow">核心功能</div>
       <h2>一站式覆盖清理与优化全流程</h2>
-      <p>从日常缓存清理到系统深度精简，五大模块各司其职。</p>
+      <p>从日常缓存清理到系统深度精简，七大模块各司其职。</p>
     </div>
-    <div class="grid grid-3">
+    <div class="grid grid-4">
       <div class="card">
         <div class="icon">🧹</div>
         <h3>缓存清理</h3>
@@ -373,6 +432,12 @@
         <h3>系统预装清理</h3>
         <p>集成 Win11Debloat，一键移除 Windows 11 预装应用与隐私功能，3 个快速预设 + 完整图形界面。</p>
         <span class="tag">Win11Debloat</span>
+      </div>
+      <div class="card" style="border-color:rgba(139,92,246,.35);">
+        <div class="icon" style="background:rgba(139,92,246,.12);border-color:rgba(139,92,246,.25);">🔘</div>
+        <h3>开关精简 <span class="mini-badge">NEW</span></h3>
+        <p>Winslop 全量移植：52 项注册表开关，广告 / AI / Edge / 隐私 / 游戏性能 / 系统调整 / 界面个性化，检测·应用·还原全可逆。</p>
+        <span class="tag" style="color:#a78bfa;border-color:rgba(139,92,246,.3);">52 项 · 7 大分类</span>
       </div>
       <div class="card">
         <div class="icon">🧰</div>
@@ -387,6 +452,12 @@
         <span class="tag">DISM / sfc / chkdsk</span>
       </div>
       <div class="card">
+        <div class="icon">⬆️</div>
+        <h3>Winget 应用更新</h3>
+        <p>一键检查全部可升级应用，列表直接输出到日志区；全部更新在独立终端执行，过程透明可控。</p>
+        <span class="tag">检查 + 一键更新</span>
+      </div>
+      <div class="card">
         <div class="icon">💽</div>
         <h3>磁盘信息</h3>
         <p>启动即显示各驱动器容量，常驻圆角进度条按使用率变色，自动检测 Windows.old 残留并提示。</p>
@@ -395,7 +466,7 @@
       <div class="card">
         <div class="icon">🖥️</div>
         <h3>现代深色 UI</h3>
-        <p>品牌栏 / 分组按钮 / 状态栏 + 进度条 / hover 反馈，高 DPI 适配，缩放屏下清晰不模糊。</p>
+        <p>7 视图单窗导航、日志过滤 / 搜索 / 导出、跑马灯进度、字号缩放与布局记忆，高 DPI 清晰不模糊。</p>
         <span class="tag">高 DPI 适配</span>
       </div>
     </div>
@@ -452,6 +523,60 @@
           <p>仅依赖 Python 内置标准库，无需 pip install；资源 / 数据目录路径自动适配，整个项目文件夹可直接复制或移动。</p>
         </div>
       </div>
+    </div>
+  </div>
+</section>
+
+<!-- 开关精简（Winslop）-->
+<section id="toggles" style="padding-top:0;">
+  <div class="container">
+    <div class="sec-head">
+      <div class="eyebrow" style="color:#a78bfa;">v3.5 新功能 · Winslop 移植</div>
+      <h2>开关精简：52 项注册表开关，全部可逆</h2>
+      <p>原 Winslop（C#）项目功能全量移植为内置视图，纯 winreg 标准库实现。每项独立「检测 / 应用 / 还原」，状态三态实时标注，一键批量操作。</p>
+    </div>
+    <div class="dl-panel" style="background:var(--card);">
+      <div class="feature-row">
+        <div class="f-ico" style="background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.3);">⊘</div>
+        <div class="f-body">
+          <h4>七大分类 · 精确到单个注册表值</h4>
+          <p>广告推广 / AI 功能 / Edge 浏览器 / 隐私遥测 / 游戏性能 / 系统调整 / 界面个性化，悬停即可查看每项的完整键值路径与还原值。</p>
+          <div class="cat-row">
+            <span class="cat-pill" style="--cat:#f5b942;">🚫 广告与推广 <b>9</b></span>
+            <span class="cat-pill" style="--cat:#a78bfa;">🤖 AI 功能 <b>3</b></span>
+            <span class="cat-pill" style="--cat:#39c5e0;">🌐 Edge 浏览器 <b>12</b></span>
+            <span class="cat-pill" style="--cat:#37d67a;">🔒 隐私 <b>4</b></span>
+            <span class="cat-pill" style="--cat:#ff6b6b;">🎮 游戏性能 <b>3</b></span>
+            <span class="cat-pill" style="--cat:#3b82f6;">⚙️ 系统调整 <b>8</b></span>
+            <span class="cat-pill" style="--cat:#8b5cf6;">🎨 界面个性化 <b>13</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">🎯</div>
+        <div class="f-body">
+          <h4>状态三态，不碰已有自定义配置</h4>
+          <p><span class="chip chip-green">✓ 已应用</span> 当前值等于推荐值 · <span class="chip" style="background:rgba(163,173,192,.12);color:var(--text-dim);border:1px solid var(--border);">默认</span> 系统默认状态 · <span class="chip chip-amber">自定义值</span> 已被其他工具修改，批量操作自动跳过，绝不覆盖。</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">↩️</div>
+        <div class="f-body">
+          <h4>全部可逆，含特殊项完整移植</h4>
+          <p>Win11 完整右键菜单（CLSID 键创建 / 删除）、禁用休眠（powercfg 联动 + 释放 hiberfil.sys）、系统深色模式（自动重启资源管理器）等特殊逻辑均已完整实现。</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <div class="f-ico">⬆️</div>
+        <div class="f-body">
+          <h4>附带 Winget 应用更新</h4>
+          <p>「系统工具」新增应用更新入口：检查更新即时列出可升级清单，全部更新在独立终端执行，附带确认与回显。</p>
+        </div>
+      </div>
+    </div>
+    <div class="shot-wrap" style="margin-top:34px;">
+      <img class="shot" src="preview_toggles.png" alt="WinSweep v3.5 开关精简视图实拍" loading="lazy" />
+      <div class="shot-ring" style="box-shadow:0 0 0 1px rgba(139,92,246,.1), 0 40px 90px -40px rgba(139,92,246,.35);"></div>
     </div>
   </div>
 </section>
@@ -546,7 +671,7 @@
       <div class="step">
         <div class="n">3</div>
         <h4>按需使用</h4>
-        <p>日常选「⚡ 快速清理」，定期选「🚀 深度清理」，精简系统用「📦 系统预装清理」，调优用「🧰 系统优化」。</p>
+        <p>日常选「⚡ 快速清理」，定期选「🚀 深度清理」，卸载软件用「🗑 批量卸载」，精简系统用「📦 预装清理」与「🔘 开关精简」，调优用「🧰 系统优化」。</p>
       </div>
     </div>
 
@@ -576,7 +701,19 @@
     </div>
     <div class="timeline">
       <div class="tl-item">
-        <span class="v">v3.3</span><span class="t">当前版本</span>
+        <span class="v">v3.6</span><span class="t">当前版本 · 内置 Bulk Crap Uninstaller</span>
+        <p>内置开源批量卸载工具 BCU（Apache-2.0，源码本地编译），「系统工具」新增启动入口；界面自带简体中文，需要 .NET 8 Desktop 运行时。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">v3.5</span><span class="t">集成 Winslop</span>
+        <p>新增「开关精简」视图：Winslop（C#）项目功能全量移植为内置注册表开关，7 类共 52 项，检测 / 应用 / 还原全部可逆；「系统工具」新增 Winget 应用更新；程序仍为零第三方依赖。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">v3.4</span><span class="t">界面与显示全面重构</span>
+        <p>单窗口多视图（弹窗全部内嵌）、日志区级别过滤 / 搜索 / 导出、跑马灯进度与任务计时、可拖拽日志分隔条、深色标题栏与 Win11 圆角、字号缩放与布局记忆。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">v3.3</span><span class="t">UI 细节优化</span>
         <p>UI 细节全面优化：颜色系统扩充、ToolTip 延迟优化、按钮禁用态视觉灰化、磁盘条改 6px 圆角胶囊三档阈值、日志时间戳独立渲染、状态栏进度条加厚等。</p>
       </div>
       <div class="tl-item">
@@ -623,11 +760,29 @@
       WinSweep
     </span>
     <p>Windows 系统垃圾清理与一站式优化工具 · 开源免费 · <a href="https://github.com/yohoten/WinSweep" target="_blank" rel="noopener">GitHub 仓库</a></p>
-    <p style="margin-top:6px;">v3.3 · MIT 开源（Win11Debloat） · 使用即视为同意上述免责声明</p>
+    <p style="margin-top:6px;">v3.6 · Apache-2.0（BCU）· MIT（Win11Debloat） · 使用即视为同意上述免责声明</p>
   </div>
 </footer>
 
 <script>
+  // 滚动入场动画
+  (function () {
+    var els = document.querySelectorAll('.stats, .sec-head, .dl-panel, .table-wrap, .step, .tl-item, .notice, #features .card');
+    if (!('IntersectionObserver' in window) || !els.length) {
+      return;
+    }
+    els.forEach(function (el) { el.classList.add('reveal'); });
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en, i) {
+        if (en.isIntersecting) {
+          setTimeout(function () { en.target.classList.add('in'); }, i * 60);
+          io.unobserve(en.target);
+        }
+      });
+    }, { threshold: 0.1 });
+    els.forEach(function (el) { io.observe(el); });
+  })();
+
   function copyClone(btn) {
     const text = 'git clone https://github.com/yohoten/WinSweep.git';
     const done = () => {

@@ -18,6 +18,11 @@ data/
 # ============ 旧版本归档（历史备份，不进版本库） ============
 archive/
 
+# ============ BCU 二进制（36MB 编译产物，不入库；见 README 获取方式） ============
+resources/BCUninstaller/
+# BCU 便携模式配置（首次运行自动生成）
+resources/BCUninstaller/BCUninstaller/
+
 # ============ 日志与临时文件 ============
 *.log
 *.tmp

@@ -10,11 +10,20 @@ WinSweep — 一键打包为可安装的 Windows 安装包（PyInstaller + Inno 
 为什么 exe 是「启动器」而不是把 .pyw 直接打进 exe
     WinSweep.pyw 用 __file__ 定位同级的 resources / data / README.md / icon.ico。
     若把脚本塞进 PyInstaller 单文件包，__file__ 会指向临时解压目录：
-      · resources 找不到（或每次重新解压 16MB）
+      · resources 找不到（或每次重新解压数十 MB）
       · data 落在临时目录，退出即被清理 —— 字号、视图、日志等偏好无法持久化
     因此 exe 只做启动器：读取安装目录下的 WinSweep.pyw，并以
     __file__ = <安装目录>\\WinSweep.pyw 执行，路径语义与双击 .pyw 完全一致。
     附带好处：只有 exe 没有 Python 的机器也能运行；安装目录里的 .pyw 仍可读可改。
+
+resources/ 分发说明
+    Optimization/       Neon 优化包（reg / bat / ps1 / exe 脚本，整体复制）
+    Win11Debloat/       预装清理脚本（自包含）
+    BCUninstaller/      v3.6 内置批量卸载工具（本地编译产物，36MB，
+                        需目标机安装 .NET 8 Desktop 运行时；缺失时主程序
+                        仍可运行，仅该卡片入口标灰提示）
+    若本机没有 resources/BCUninstaller/（如源码分发后未编译），打包自动
+    跳过并给出提示，不会导致安装包失败。
 
 用法
     python build.py                    全流程：图标 → exe → 安装包
@@ -24,7 +33,7 @@ WinSweep — 一键打包为可安装的 Windows 安装包（PyInstaller + Inno 
     python build.py --icon-only        只生成 icon.ico
     python build.py --clean            只清理 build/ 与 dist/
     python build.py --open             完成后打开产物目录
-    python build.py --version 3.5      覆盖版本号（默认从 WinSweep.pyw 读取）
+    python build.py --version 3.6      覆盖版本号（默认从 WinSweep.pyw 读取）
     python build.py --iscc <路径>      指定 ISCC.exe（默认自动查找）
     python build.py --upx <目录>       使用 UPX 压缩（可能增加杀软误报，默认关闭）
 """
@@ -45,9 +54,13 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 APP_SCRIPT = PROJECT_DIR / "WinSweep.pyw"          # 主程序（唯一入口，元数据来源）
 ICON_FILE = PROJECT_DIR / "icon.ico"               # 由本脚本生成 / 可自行替换
-RES_DIR = PROJECT_DIR / "resources"                # 运行期资源（Optimization / Win11Debloat）
+ICON_FALLBACK = PROJECT_DIR / "winsweep.ico"       # 备用图标（用户提供的自定义图标）
+RES_DIR = PROJECT_DIR / "resources"                # 运行期资源（Optimization / Win11Debloat / BCUninstaller）
+BCU_DIR = RES_DIR / "BCUninstaller"                # v3.6 内置批量卸载工具（编译产物，36MB）
+BCU_EXE = BCU_DIR / "BCUninstaller.exe"
 README_FILE = PROJECT_DIR / "README.md"            # 「关于」视图的「打开 README」按钮
 LANDING_PAGE = PROJECT_DIR / "index.html"          # 落地页（随包分发，可选）
+PREVIEW_IMAGES = ("preview.png", "preview_toggles.png")  # 落地页引用的本地截图
 
 INSTALLER_DIR = PROJECT_DIR / "installer"
 ISCC_SCRIPT = INSTALLER_DIR / "WinSweep.iss"       # Inno Setup 脚本（种子模板）
@@ -304,10 +317,18 @@ def write_ico(path, sizes=ICON_SIZES):
 
 
 def make_icon(force=False):
-    """生成 icon.ico；已存在且未指定 --force-icon 时保留用户图标。"""
+    """生成 icon.ico；已存在且未指定 --force-icon 时保留用户图标。
+
+    优先级：icon.ico（用户自定义，如 winsweep.ico 复制而来）> winsweep.ico 备用
+    > 内置逐像素扫帚图标。只在内置兜底时调用 write_ico。
+    """
     step("应用图标 icon.ico")
     if ICON_FILE.is_file() and not force:
         ok(f"已存在，保留现有图标：{ICON_FILE.name}（如需重建请加 --force-icon）")
+        return ICON_FILE
+    if not force and ICON_FALLBACK.is_file():
+        shutil.copy2(str(ICON_FALLBACK), str(ICON_FILE))
+        ok(f"沿用备用图标 {ICON_FALLBACK.name} → {ICON_FILE.name}（如需重建请加 --force-icon）")
         return ICON_FILE
     write_ico(ICON_FILE)
     ok(f"已生成 {ICON_FILE.name}（{len(ICON_SIZES)} 种尺寸，{human_size(ICON_FILE)}）")

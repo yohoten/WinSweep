@@ -13,7 +13,12 @@
 # time                         时间戳、任务计时与磁盘信息刷新
 # math                         磁盘胶囊条与旋转指示器的几何计算
 # ctypes                       UAC 提权、管理员检测、DPI 适配、DWM 深色标题栏
-# tempfile         临时文件（Win11Debloat GUI 错误日志）
+# winreg                       「开关精简」视图读写注册表开关（Winslop 移植，v3.5+）
+
+# ---- 内置第三方组件（非 pip 依赖）----
+# resources/Win11Debloat/      预装清理脚本（MIT）
+# resources/BCUninstaller/     Bulk Crap Uninstaller（Apache-2.0，本地编译，需 .NET 8 Desktop 运行时）
+# resources/Optimization/      Neon 优化包（reg/bat/ps1/exe 脚本集合）
 
 # ---- 可选（非必需）----
 # icon.ico         自定义窗口图标；缺省使用内置逐像素绘制的图标
