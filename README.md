@@ -215,7 +215,8 @@ WinSweep/
 | 操作系统 | Windows 10 / 11（需支持 UAC 提权） |
 | Python | 3.8 +（官方安装包自带 `tkinter`，无需额外安装） |
 | 权限 | 管理员权限（程序启动时自动请求 UAC） |
-| 第三方依赖 | **无** |
+| 第三方依赖 | **无**（源码运行） |
+| .NET 8 Desktop | 仅「批量卸载」（BCU）需要；未安装时其余功能不受影响，该入口标灰提示 |
 
 ---
 
@@ -384,13 +385,22 @@ WinSweep/
   使 `resources/`、`data/`、`README.md` 的定位与直接双击 `.pyw` 完全一致。
   若把脚本直接打进单文件 exe，`__file__` 会指向临时解压目录 —— 资源定位失效，且 `data/` 每次运行被清空，
   字号、视图、日志等偏好无法持久化。
-- 版本号取自 `WinSweep.pyw` 的 `APP_VERSION`，无需在两处维护；也可用 `--version 3.5` 临时覆盖。
+- 版本号取自 `WinSweep.pyw` 的 `APP_VERSION`，无需在两处维护；也可用 `--version 3.6` 临时覆盖。
 - 首次构建会自动执行 `pip install pyinstaller`。
 - 编译安装包需要 **Inno Setup 6**（`winget install JRSoftware.InnoSetup`）；
   未安装时可先用 `--exe-only` 得到免安装目录。
 - `dist/app/` 同时是安装包的唯一内容来源，安装内容与免安装目录完全一致，不会出现两处清单不一致。
+- **launcher 隐形依赖**：exe 启动器通过 `exec` 执行外置 `.pyw`，PyInstaller 静态分析看不到主程序的
+  `import`，因此 `build.py` 已把 `glob` / `winreg` 等 12 个标准库显式加入 `hidden-import`。
+  若主程序今后新增标准库依赖，记得同步 `run_pyinstaller()` 里的 `runtime_stdlib` 列表，
+  否则打包版会启动即崩（v3.6 之前曾因缺 `glob` 触发此问题）。
+- **BCU 分发**：`resources/BCUninstaller/`（36 MB，.gitignore 已排除）不会被 git 跟踪；
+  源码分发后需从 `archive/BCUninstaller-src`（含编译补丁）`dotnet publish` 重新编译，
+  打包时缺失该目录只警告不阻断。「批量卸载」在目标机需要 **.NET 8 Desktop 运行时**。
+- `icon.ico` 缺失时自动沿用 `winsweep.ico`，再缺失才用内置扫帚图标；
+  `--force-icon` 强制重建。
 - 安装脚本 `installer/WinSweep.iss` 可作为其它项目的模板：改 `MyAppName` / `MyAppId` / `MyAppExeName`
-  与 `[Files]` 的来源目录即可。
+  与 `[Files]` 的来源目录即可；卸载时会询问是否保留 `data/` 偏好，并自动清除 BCU 便携配置。
 
 ---
 
