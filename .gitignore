@@ -23,6 +23,11 @@ resources/BCUninstaller/
 # BCU 便携模式配置（首次运行自动生成）
 resources/BCUninstaller/BCUninstaller/
 
+# ============ Uninstall Tool 便携版（第三方商业软件，约 7MB，不入库） ============
+# 语言切换产生的配置备份
+resources/UninstallTool/
+resources/UninstallTool/App/UninstallTool/preferences.xml.bak
+
 # ============ 日志与临时文件 ============
 *.log
 *.tmp

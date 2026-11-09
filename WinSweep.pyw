@@ -1,9 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-WinSweep v3.6 - 系统垃圾清理工具 (.pyw)
+WinSweep v3.7 - 系统垃圾清理工具 (.pyw)
 图形界面版本，双击运行无控制台窗口。
 需要管理员权限，如未提权会自动请求。
+
+v3.7 更新（内置 Uninstall Tool 专业卸载）：
+  * 内置 Uninstall Tool（CrystalIDEA）便携版，「系统工具」新增启动入口：
+    强制移除无卸载程序的顽固软件、扫描卸载残留（注册表 / 磁盘）、安装监视
+  * 启动入口带进程轮询：启动失败给出退出码与常见原因，关闭后自动刷新磁盘信息
+    并记录最近启动时间（data/ut_last.txt）
+  * 界面语言一键切换：随包仅有 English / 简体中文 两个语言文件，默认 English，
+    可一键改写 preferences.xml 的 Interface_Language（自动备份 .bak）
+  * 概览「资源」自检纳入 UninstallTool/，缺失时标黄提示而非静默失败
 
 v3.6 更新（内置 Bulk Crap Uninstaller）：
   * 内置开源批量卸载工具 Bulk Crap Uninstaller（Apache-2.0，本地编译），
@@ -50,6 +59,7 @@ import sys
 import glob
 import json
 import math
+import re
 import shutil
 import stat
 import subprocess
@@ -65,12 +75,12 @@ from tkinter import ttk, messagebox
 from tkinter import font as tkfont
 
 APP_NAME    = "WinSweep"
-APP_VERSION = "3.6"
+APP_VERSION = "3.7"
 APP_TAGLINE = "系统垃圾清理 · 一站式优化"
 
 # ────────────── 项目路径（统一基础常量：资源与运行时数据分层） ──────────────
 APP_DIR  = os.path.dirname(os.path.abspath(__file__))
-RES_DIR  = os.path.join(APP_DIR, "resources")     # 资源目录（Optimization / Win11Debloat / BCUninstaller）
+RES_DIR  = os.path.join(APP_DIR, "resources")     # 资源目录（Optimization / Win11Debloat / BCUninstaller / UninstallTool）
 DATA_DIR = os.path.join(APP_DIR, "data")          # 运行时数据（自动生成）
 os.makedirs(DATA_DIR, exist_ok=True)
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
@@ -81,6 +91,82 @@ LOG_DIR       = os.path.join(DATA_DIR, "logs")
 # 界面自带简体中文（zh-Hans），中文系统下自动显示
 BCU_DIR  = os.path.join(RES_DIR, "BCUninstaller")
 BCU_EXE  = os.path.join(BCU_DIR, "BCUninstaller.exe")
+
+# ────────────── Uninstall Tool 专业卸载路径（PortableApps 便携结构） ──────────────
+# 商业卸载工具（CrystalIDEA）便携版：App/UninstallTool/ 为程序目录（exe 与
+# preferences.xml 同目录，配置随程序走），Data/ 为便携数据目录。
+# 随包仅含 English / 简体中文 两个语言文件，默认英文，界面提供一键切换。
+UT_DIR       = os.path.join(RES_DIR, "UninstallTool")
+UT_APP_DIR   = os.path.join(UT_DIR, "App", "UninstallTool")
+UT_EXE       = os.path.join(UT_APP_DIR, "UninstallTool.exe")
+UT_HELPER    = os.path.join(UT_APP_DIR, "UninstallToolHelper.exe")
+UT_PREFS     = os.path.join(UT_APP_DIR, "preferences.xml")
+UT_LANG_DIR  = os.path.join(UT_APP_DIR, "languages")
+UT_DATA_DIR  = os.path.join(UT_DIR, "Data")
+UT_LAST_FILE = os.path.join(DATA_DIR, "ut_last.txt")
+UT_LANG_CN   = "Chinese_Simplified"
+UT_LANG_LABELS = {"English": "English（默认）", UT_LANG_CN: "简体中文"}
+UT_LANG_SHORT  = {"English": "English", UT_LANG_CN: "简体中文"}
+
+
+def ut_lang_text(lang):
+    """界面语言内部值 → 展示文案（未知值原样返回）"""
+    if not lang:
+        return "未知"
+    return UT_LANG_LABELS.get(lang, lang)
+
+
+def ut_lang_short(lang):
+    """界面语言内部值 → 按钮用短文案"""
+    return UT_LANG_SHORT.get(lang or "", lang or "")
+
+
+def ut_interface_language():
+    """读取 Uninstall Tool 当前界面语言（preferences.xml → Interface_Language）"""
+    try:
+        with open(UT_PREFS, "r", encoding="utf-8", errors="ignore") as fh:
+            text = fh.read()
+    except Exception:
+        return None
+    m = re.search(r"<Interface_Language[^>]*>\s*([^<]*?)\s*</Interface_Language>", text)
+    return m.group(1) if m else None
+
+
+def ut_set_language(lang):
+    """把 preferences.xml 的 Interface_Language 改为指定语言。
+
+    仅改写该一项，其余配置原样保留；修改前备份为 preferences.xml.bak。
+    返回 (是否成功, 说明)。语言在 Uninstall Tool 下次启动时生效。
+    """
+    if not os.path.isfile(UT_PREFS):
+        return False, "未找到 preferences.xml（请先启动一次 Uninstall Tool 生成配置）"
+    try:
+        with open(UT_PREFS, "r", encoding="utf-8", errors="ignore") as fh:
+            text = fh.read()
+    except Exception as e:
+        return False, f"读取配置失败：{e}"
+
+    pattern = r"(<Interface_Language[^>]*>)\s*[^<]*?\s*(</Interface_Language>)"
+    if re.search(pattern, text):
+        new_text = re.sub(pattern, lambda m: f"{m.group(1)}{lang}{m.group(2)}", text, count=1)
+    elif "</PortableProgramData>" in text:
+        new_text = text.replace(
+            "</PortableProgramData>",
+            f'    <Interface_Language type="2">{lang}</Interface_Language>\n</PortableProgramData>', 1)
+    else:
+        return False, "preferences.xml 结构无法识别，未做修改"
+    if new_text == text:
+        return True, f"界面语言已是 {ut_lang_text(lang)}"
+
+    try:
+        shutil.copy2(UT_PREFS, UT_PREFS + ".bak")
+        tmp = UT_PREFS + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(new_text)
+        os.replace(tmp, UT_PREFS)
+    except Exception as e:
+        return False, f"写入配置失败：{e}"
+    return True, f"界面语言已设为 {ut_lang_text(lang)}（重启 Uninstall Tool 后生效）"
 
 # ────────────── Win11Debloat 系统预装清理路径 ──────────────
 # 已内置到 resources/Win11Debloat/ 子目录（自包含，可整体移动）
@@ -3070,6 +3156,8 @@ class WinSweepApp:
             res_missing.append("Win11DebloatGUI.ps1")
         if not os.path.isdir(OPT_BASE):
             res_missing.append("Optimization/")
+        if not os.path.isfile(UT_EXE):
+            res_missing.append("UninstallTool/")
         res_text = "完整" if not (res_missing or miss) else \
             f"缺失 {len(res_missing) + len(miss)} 项：{', '.join((res_missing + miss)[:3])}"
         vals = {
@@ -3549,6 +3637,47 @@ class WinSweepApp:
         if not os.path.isdir(BCU_DIR):
             set_button_enabled(b_bdir, False)
 
+        # Uninstall Tool 专业卸载（v3.7 内置）
+        ut_ok = os.path.isfile(UT_EXE)
+        ut_lang = ut_interface_language()
+        uc, ub = self._new_card(inner, bg="#241C10", border="#3A2E18")
+        uc.pack(fill="x", padx=10, pady=(10, 0))
+        uhead = self._card_title(ub, "🧰 Uninstall Tool 专业卸载",
+                                 sub="强制移除 · 残留扫描 · 安装监视", accent=AMBER)
+        chip(uhead, "v3.7 内置" if ut_ok else "组件缺失", fg=AMBER if ut_ok else RED,
+             bg=mix(BG3, AMBER, 0.18) if ut_ok else BG3,
+             font=FONT["tiny"], padx=6, pady=1).pack(side="right")
+        self._wrap(ub, "商业级卸载工具便携版（CrystalIDEA）：强制移除无卸载程序的顽固软件、"
+                       "扫描卸载残留的注册表与磁盘项、安装监视（Install Tracker）记录安装过程以便彻底回滚。"
+                       "界面自带多语言支持，独立窗口运行，关闭后返回本工具。", fg=FG_DIM)
+        self._note(ub, f"程序  {UT_EXE}", FG_MUTE, icon="").pack(anchor="w", pady=(6, 0))
+        _, self.ut_lang_lbl = self._kv(ub, "界面语言", ut_lang_text(ut_lang),
+                                       vfg=FG_DIM if ut_lang else AMBER)
+        _, self.ut_last_lbl = self._kv(ub, "上次启动", self._last_ut_time() or "从未启动",
+                                       vfg=FG_DIM)
+        uflow = FlowFrame(ub, bg=str(ub.cget("bg")), spacing=5)
+        uflow.pack(fill="x", pady=(8, 0))
+        b_ut = uflow.add(make_button(uflow, "▶ 启动 Uninstall Tool", self._launch_ut,
+                                     color=AMBER, size="sm"))
+        ut_target = "English" if ut_lang == UT_LANG_CN else UT_LANG_CN
+        b_utlang = uflow.add(make_button(
+            uflow, f"🌐 切换{ut_lang_short(ut_target)}",
+            lambda t=ut_target: self._ut_switch_lang(t), style="ghost", size="sm", color=FG_DIM))
+        b_utdir = uflow.add(make_button(uflow, "📂 打开目录", lambda: self._open_path(UT_DIR),
+                                        style="ghost", size="sm", color=FG_DIM))
+        self.ut_lang_btn = b_utlang
+        self._register_action(b_ut)
+        if not ut_ok:
+            set_button_enabled(b_ut, False)
+            ToolTip(b_ut, f"未找到 {UT_EXE}")
+        if ut_ok and os.path.isfile(os.path.join(UT_LANG_DIR, ut_target + ".xml")):
+            ToolTip(b_utlang, "改写 preferences.xml 的 Interface_Language，下次启动生效（原文件自动备份）")
+        else:
+            set_button_enabled(b_utlang, False)
+            ToolTip(b_utlang, f"语言文件缺失：{ut_target}.xml")
+        if not os.path.isdir(UT_DIR):
+            set_button_enabled(b_utdir, False)
+
         tools = [
             ("🧹 磁盘清理 (cleanmgr)", "系统自带图形工具，可清理系统文件与旧更新", ACCENT2,
              lambda: self._run_cleanmgr(), "低风险"),
@@ -3599,6 +3728,111 @@ class WinSweepApp:
             self.log("info", f"  已启动（PID {proc.pid}）。首次运行会扫描已装程序，请稍候。")
         except Exception as e:
             self.log("error", f"[批量卸载] 启动失败: {e}")
+
+    # ────────────── Uninstall Tool 专业卸载 ──────────────
+    def _launch_ut(self):
+        """启动内置的 Uninstall Tool 专业卸载工具（便携模式，配置随程序目录）"""
+        if not os.path.isfile(UT_EXE):
+            messagebox.showerror("缺少组件", f"未找到 UninstallTool.exe：\n{UT_EXE}")
+            return
+        if not os.path.isdir(UT_DATA_DIR):
+            try:
+                os.makedirs(UT_DATA_DIR, exist_ok=True)
+            except Exception:
+                pass
+        try:
+            self.log("cyan", "━━━━━━ 专业卸载 (Uninstall Tool) ━━━━━━")
+            self.log("info", "  正在启动 Uninstall Tool（独立窗口，读取便携配置）…")
+            proc = subprocess.Popen([UT_EXE], cwd=UT_APP_DIR)
+            self.ut_proc, self.ut_started = proc, time.time()
+            self.ut_success_logged = False
+            self.log("info", f"  已启动（PID {proc.pid}）。首次启动会枚举已安装程序，请稍候。")
+            self.set_status("正在启动 Uninstall Tool…", 0)
+            self.root.after(1500, self._poll_ut)
+        except Exception as e:
+            self.log("error", f"[专业卸载] 启动失败: {e}")
+
+    def _poll_ut(self):
+        """轮询 Uninstall Tool 进程：启动失败提示 + 关闭后刷新磁盘与启动时间"""
+        proc = getattr(self, "ut_proc", None)
+        if proc is None:
+            return
+        code = proc.poll()
+        if code is None:
+            if not self.ut_success_logged and time.time() - self.ut_started > 1.5:
+                self.ut_success_logged = True
+                self.log("success", "✔ Uninstall Tool 已启动")
+                self.set_status("Uninstall Tool 运行中…", 0)
+            self.root.after(1500, self._poll_ut)
+            return
+
+        self.ut_proc = None
+        if time.time() - self.ut_started < 1.5:
+            if code == 0:
+                self.log("info", "[专业卸载] 已有实例在前台运行，本次启动请求已交由其处理")
+            else:
+                self.log("error", f"[专业卸载] Uninstall Tool 启动失败（退出码 {code}）")
+                self.log("info", "  常见原因：程序文件不完整 / 被安全软件拦截 / preferences.xml 损坏")
+            self.set_status("就绪", 0)
+            return
+
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            with open(UT_LAST_FILE, "w", encoding="utf-8") as fh:
+                fh.write(stamp)
+        except Exception:
+            pass
+        try:
+            self.ut_last_lbl.config(text=stamp)
+        except Exception:
+            pass
+        self.log("info", "[专业卸载] Uninstall Tool 已关闭")
+        self.refresh_info(False)
+        self.set_status("就绪", 0)
+
+    def _last_ut_time(self):
+        """读取最近一次 Uninstall Tool 启动时间"""
+        try:
+            if os.path.isfile(UT_LAST_FILE):
+                with open(UT_LAST_FILE, "r", encoding="utf-8") as fh:
+                    return fh.read().strip()
+        except Exception:
+            pass
+        return None
+
+    def _ut_switch_lang(self, target=None):
+        """切换 Uninstall Tool 界面语言（改写 preferences.xml，默认切到简体中文）"""
+        target = target or UT_LANG_CN
+        proc = getattr(self, "ut_proc", None)
+        if proc is not None and proc.poll() is None:
+            messagebox.showinfo("请先关闭",
+                                "Uninstall Tool 正在运行。程序退出时会回写配置，"
+                                "此时修改会被覆盖。\n请关闭该窗口后重试。")
+            return
+        lang_file = os.path.join(UT_LANG_DIR, target + ".xml")
+        if not os.path.isfile(lang_file):
+            messagebox.showerror("缺少语言包", f"未找到语言文件：\n{lang_file}")
+            return
+        ok, msg = ut_set_language(target)
+        if not ok:
+            self.log("error", f"[专业卸载] 语言切换失败：{msg}")
+            messagebox.showerror("切换失败", msg)
+            return
+        self.log("success", f"✔ [专业卸载] {msg}")
+
+        cur = ut_interface_language()
+        try:
+            self.ut_lang_lbl.config(text=ut_lang_text(cur), fg=ACCENT if cur == target else FG_DIM)
+        except Exception:
+            pass
+        # 按钮转为「切回另一语言」，并按语言包是否存在决定可用性
+        nxt = "English" if cur == UT_LANG_CN else UT_LANG_CN
+        try:
+            self.ut_lang_btn.config(text=f"🌐 切换{ut_lang_short(nxt)}")
+            set_button_enabled(self.ut_lang_btn,
+                               os.path.isfile(os.path.join(UT_LANG_DIR, nxt + ".xml")))
+        except Exception:
+            pass
 
     def _winget_check(self):
         self.run_in_thread(self._winget_check_run, "Winget 检查更新", indeterminate=True)
@@ -3663,13 +3897,25 @@ class WinSweepApp:
 
         c2, b2 = self._new_card(inner)
         c2.pack(fill="x", padx=10, pady=4)
-        self._card_title(b2, "v3.6 内置 Bulk Crap Uninstaller", accent=PURPLE)
+        self._card_title(b2, "v3.7 内置 Uninstall Tool 专业卸载", accent=AMBER)
+        for line in (
+            "内置商业卸载工具 Uninstall Tool（CrystalIDEA）便携版，「系统工具」新增启动入口",
+            "强制移除无卸载程序的顽固软件 · 扫描卸载残留（注册表 / 磁盘）· 安装监视 Install Tracker",
+            "启动入口带进程轮询：启动失败回显退出码与常见原因，关闭后自动刷新磁盘并记录启动时间",
+            "界面语言一键切换：随包仅 English / 简体中文，默认英文，改写 preferences.xml 前自动备份",
+            "概览「资源」自检纳入 UninstallTool/，缺失时标黄提示；第三方授权见 README 说明",
+        ):
+            self._wrap(b2, "·  " + line, fg=FG_DIM, pady=(1, 1))
+
+        c26, b26 = self._new_card(inner)
+        c26.pack(fill="x", padx=10, pady=4)
+        self._card_title(b26, "v3.6 内置 Bulk Crap Uninstaller", accent=PURPLE)
         for line in (
             "内置开源批量卸载工具 BCU（Apache-2.0，源码本地编译），「系统工具」新增启动入口",
             "大批量卸载应用 · 自动清理卸载残留 · 孤儿程序检测，支持 Steam / 商店应用 / Windows 功能",
             "界面自带简体中文（zh-Hans），独立窗口运行；需要 .NET 8 Desktop 运行时",
         ):
-            self._wrap(b2, "·  " + line, fg=FG_DIM, pady=(1, 1))
+            self._wrap(b26, "·  " + line, fg=FG_DIM, pady=(1, 1))
 
         c25, b25 = self._new_card(inner)
         c25.pack(fill="x", padx=10, pady=4)
@@ -3696,14 +3942,16 @@ class WinSweepApp:
             "按钮：内容自适应宽度并自动换行，中文/emoji 混排不再截断；禁用态明显变暗",
             "偏好：字号可缩放（Ctrl+= / Ctrl+-），视图、布局、窗口尺寸记忆到 data/settings.json",
         ):
-            self._wrap(b2, "·  " + line, fg=FG_DIM, pady=(1, 1))
+            self._wrap(b3, "·  " + line, fg=FG_DIM, pady=(1, 1))
 
         c3, b3 = self._new_card(inner)
         c3.pack(fill="x", padx=10, pady=4)
         self._card_title(b3, "免责声明", accent=RED)
         self._wrap(b3, "本工具会修改系统设置并删除文件，请在了解每项操作含义后使用；"
                        "因使用本工具造成的数据丢失或系统不稳定，作者不承担责任。"
-                       "Win11Debloat 为第三方开源项目（MIT 许可证）。", fg=FG_MUTE)
+                       "Win11Debloat 为第三方开源项目（MIT 许可证）；"
+                       "Uninstall Tool 为 CrystalIDEA 商业软件，随包分发及商用须自行遵守其最终用户许可协议。",
+                   fg=FG_MUTE)
 
 
     # ────────────── 清理执行 ──────────────

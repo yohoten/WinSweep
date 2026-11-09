@@ -103,8 +103,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; ═══════════════════════════════════════════════════════════════════════════
 [Files]
 ; dist/app 已包含全部运行文件：exe 启动器、_internal 依赖、WinSweep.pyw、
-; resources/（Optimization + Win11Debloat + BCUninstaller）、icon.ico、README.md、
-; index.html 及其截图（可选）。
+; resources/（Optimization + Win11Debloat + BCUninstaller + UninstallTool）、
+; icon.ico、README.md、index.html 及其截图（可选）。
 ; 安装内容与「免安装运行目录」完全一致，因此这里只需一行，
 ; 避免安装清单与源目录两处维护、遗漏文件。
 ; 注意：resources/BCUninstaller 需要目标机安装 .NET 8 Desktop 运行时，
@@ -134,17 +134,22 @@ Type: filesandordirs; Name: "{app}\__pycache__"
 ; ═══════════════════════════════════════════════════════════════════════════
 [Code]
 // 卸载时询问是否保留用户数据：
-//   data/                        字体缩放、视图、日志等 WinSweep 偏好
-//   resources/BCUninstaller/     BCU 便携配置（首次运行生成，含卸载列表缓存等）
+//   data/                         字体缩放、视图、日志等 WinSweep 偏好
+//   resources/BCUninstaller/      BCU 便携配置（首次运行生成，含卸载列表缓存等）
+//   resources/UninstallTool/      专业卸载工具的便携配置与语言备份
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   DataDir: String;
   BcuConfigDir: String;
+  UtDataDir: String;
+  UtPrefBak: String;
 begin
   if CurUninstallStep = usUninstall then
   begin
     DataDir := ExpandConstant('{app}\data');
     BcuConfigDir := ExpandConstant('{app}\resources\BCUninstaller\BCUninstaller');
+    UtDataDir := ExpandConstant('{app}\resources\UninstallTool\Data');
+    UtPrefBak := ExpandConstant('{app}\resources\UninstallTool\App\UninstallTool\preferences.xml.bak');
     if DirExists(DataDir) then
     begin
       if MsgBox('是否同时删除配置与日志？' + #13#10 + #13#10 +
@@ -156,5 +161,9 @@ begin
     end;
     if DirExists(BcuConfigDir) then
       DelTree(BcuConfigDir, True, True, True);  // BCU 便携配置随程序卸载一并清除
+    if DirExists(UtDataDir) then
+      DelTree(UtDataDir, True, True, True);     // Uninstall Tool 便携数据目录
+    if FileExists(UtPrefBak) then
+      DeleteFile(UtPrefBak);                    // 语言切换产生的配置备份
   end;
 end;

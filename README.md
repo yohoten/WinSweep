@@ -1,8 +1,8 @@
 # 🧹 WinSweep
 
-> Windows 系统垃圾清理与一站式优化工具 · v3.6
+> Windows 系统垃圾清理与一站式优化工具 · v3.7
 
-基于 Python 标准库 `tkinter` 编写，**双击即用，零第三方依赖**。集成 **Win11Debloat**（系统预装应用清理）与 **Neon 优化包**（系统性能调优），覆盖日常缓存清理、系统精简、性能优化全流程。
+基于 Python 标准库 `tkinter` 编写，**双击即用，零第三方依赖**。集成 **Win11Debloat**（系统预装应用清理）、**Neon 优化包**（系统性能调优）与两款卸载工具（**Bulk Crap Uninstaller** / **Uninstall Tool**），覆盖日常缓存清理、系统精简、性能优化与软件卸载全流程。
 
 v3.4 为**界面与显示重构版**：单窗口多视图 + 可拖拽日志区 + 深色标题栏，修复了旧版窗口高度不足时底部按钮与状态栏被挤出可视区的问题。
 
@@ -192,11 +192,15 @@ WinSweep/
 │   │   ├── 10 中断机制与延迟优化/
 │   │   └── 11 应用优先级/
 │   ├── Win11Debloat/         # 系统预装清理（自包含，含官方 README / 说明文档）
-│   └── BCUninstaller/        # Bulk Crap Uninstaller 批量卸载（本地编译，含 zh-Hans 中文）
+│   ├── BCUninstaller/        # Bulk Crap Uninstaller 批量卸载（本地编译，含 zh-Hans 中文）
+│   └── UninstallTool/        # Uninstall Tool 专业卸载（CrystalIDEA 便携版）
+│       ├── App/UninstallTool/    # UninstallTool.exe + preferences.xml + languages/
+│       └── Data/settings/        # 便携数据目录
 │
 ├── data/                     # 运行时数据（程序自动生成，勿手动修改）
 │   ├── settings.json         # 界面偏好（字号 / 视图 / 布局 / 窗口尺寸）
 │   ├── w11d_last.txt         # 最近一次系统预装清理时间戳
+│   ├── ut_last.txt           # 最近一次 Uninstall Tool 启动时间戳
 │   ├── logs/                 # Ctrl+S 导出的日志文件
 │   └── win11debloat_backup/  # Win11Debloat 配置自动备份（保留最近 5 份）
 │
@@ -217,6 +221,7 @@ WinSweep/
 | 权限 | 管理员权限（程序启动时自动请求 UAC） |
 | 第三方依赖 | **无**（源码运行） |
 | .NET 8 Desktop | 仅「批量卸载」（BCU）需要；未安装时其余功能不受影响，该入口标灰提示 |
+| 运行库 | 「专业卸载」（Uninstall Tool）为原生 exe，需系统自带 VC++ 运行库；无需 .NET |
 
 ---
 
@@ -240,7 +245,7 @@ WinSweep/
 | 缓存清理视图 | 逐项查看风险说明后勾选执行（推荐 / 全选 / 清空） |
 | 预装清理视图 | 精简 Win11 预装应用 / 关闭遥测与广告 |
 | 系统优化视图 | 性能调优（注意危险等级，高危操作先建还原点） |
-| 系统工具视图 | 还原点 / DISM / sfc / chkdsk / 磁盘清理 |
+| 系统工具视图 | 还原点 / DISM / sfc / chkdsk / 磁盘清理 / 批量卸载（BCU）/ 专业卸载（Uninstall Tool） |
 
 ### 快捷键
 
@@ -268,7 +273,7 @@ WinSweep/
 - **日志防膨胀**：内存保留最近 4000 条记录、界面最多渲染 1200 行，超限自动截断前半段；过滤/搜索基于记录列表重绘，长时运行不卡顿
 - **内置图标**：无 `icon.ico` 时逐像素绘制扫帚图标，零外部依赖，开箱即用
 - **危险操作防护**：系统优化项按低 / 中 / 高危分级标注，执行前强制二次确认弹窗；高危项引导先创建系统还原点；执行期间所有操作按钮自动禁用（退出与视图切换仍可用）
-- **资源自检**：启动与刷新时检测 Win11Debloat 脚本、优化包目录与每个执行入口文件是否存在，缺失项在视图内标灰并提示，避免“点了才报错”
+- **资源自检**：启动与刷新时检测 Win11Debloat 脚本、优化包目录、UninstallTool 主程序与每个执行入口文件是否存在，缺失项在视图内标灰并提示，避免“点了才报错”
 - **浏览器动态检测**：扫描 11 个候选路径，仅处理本机实际安装的浏览器，去重后输出命中列表
 - **还原点一键创建**：PowerShell `Checkpoint-Computer` 封装，支持自定义描述，失败时详细回显并引导手动开启系统保护
 - **偏好持久化**：字号 / 当前视图 / 日志区高度 / 窗口尺寸 / 自动滚动写入 `data/settings.json`，异常退出不影响（仅任务结束与关闭时写入）
@@ -299,7 +304,15 @@ WinSweep/
 
 ## 📦 版本历史
 
-### v3.6（当前版本）— 内置 Bulk Crap Uninstaller
+### v3.7（当前版本）— 内置 Uninstall Tool 专业卸载
+
+- 内置 **Uninstall Tool**（CrystalIDEA）便携版，「系统工具」新增启动入口：强制移除无卸载程序的顽固软件、扫描卸载残留（注册表与磁盘）、安装监视（Install Tracker）
+- 启动入口带**进程轮询**：启动失败回显退出码与常见原因；应用关闭后自动刷新磁盘信息并写入 `data/ut_last.txt` 启动时间戳（卡片内显示「上次启动」）
+- **界面语言一键切换**：随包仅含 `English` / `Chinese_Simplified` 两个语言文件（默认英文），可一键改写 `preferences.xml` 的 `Interface_Language`，修改前自动备份为 `.bak`；Uninstall Tool 运行中则拒绝修改，避免配置被回写覆盖
+- 概览「资源」自检纳入 `UninstallTool/`，缺失时标黄提示；`build.py` 打包预检、体积报告、安装包卸载清理（`Data/` 与 `preferences.xml.bak`）同步支持该目录
+- 关于视图新增 v3.7 更新说明，并补注 Uninstall Tool 的第三方授权提示
+
+### v3.6 — 内置 Bulk Crap Uninstaller
 
 - 内置开源批量卸载工具 Bulk Crap Uninstaller（Apache-2.0，源码本地编译为框架依赖版）
 - 「系统工具」新增启动入口：大批量卸载应用、自动清理卸载残留、检测孤儿程序，支持 Steam / 商店应用 / Windows 功能
@@ -385,22 +398,27 @@ WinSweep/
   使 `resources/`、`data/`、`README.md` 的定位与直接双击 `.pyw` 完全一致。
   若把脚本直接打进单文件 exe，`__file__` 会指向临时解压目录 —— 资源定位失效，且 `data/` 每次运行被清空，
   字号、视图、日志等偏好无法持久化。
-- 版本号取自 `WinSweep.pyw` 的 `APP_VERSION`，无需在两处维护；也可用 `--version 3.6` 临时覆盖。
+- 版本号取自 `WinSweep.pyw` 的 `APP_VERSION`，无需在两处维护；也可用 `--version 3.7` 临时覆盖。
 - 首次构建会自动执行 `pip install pyinstaller`。
 - 编译安装包需要 **Inno Setup 6**（`winget install JRSoftware.InnoSetup`）；
   未安装时可先用 `--exe-only` 得到免安装目录。
 - `dist/app/` 同时是安装包的唯一内容来源，安装内容与免安装目录完全一致，不会出现两处清单不一致。
 - **launcher 隐形依赖**：exe 启动器通过 `exec` 执行外置 `.pyw`，PyInstaller 静态分析看不到主程序的
-  `import`，因此 `build.py` 已把 `glob` / `winreg` 等 12 个标准库显式加入 `hidden-import`。
+  `import`，因此 `build.py` 已把 `glob` / `winreg` / `re` 等 13 个标准库显式加入 `hidden-import`。
   若主程序今后新增标准库依赖，记得同步 `run_pyinstaller()` 里的 `runtime_stdlib` 列表，
-  否则打包版会启动即崩（v3.6 之前曾因缺 `glob` 触发此问题）。
+  否则打包版会启动即崩（v3.6 之前曾因缺 `glob` 触发此问题；v3.7 已补入 `re`）。
 - **BCU 分发**：`resources/BCUninstaller/`（36 MB，.gitignore 已排除）不会被 git 跟踪；
   源码分发后需从 `archive/BCUninstaller-src`（含编译补丁）`dotnet publish` 重新编译，
   打包时缺失该目录只警告不阻断。「批量卸载」在目标机需要 **.NET 8 Desktop 运行时**。
+- **Uninstall Tool 分发**：`resources/UninstallTool/`（约 7 MB，.gitignore 已排除）为第三方
+  商业软件的便携版，**不会**被 git 跟踪；随包分发或商用前请自行确认已获 CrystalIDEA 授权。
+  目录结构须保持 `App/UninstallTool/UninstallTool.exe` + `Data/`（PortableApps 布局），
+  缺失时打包仅警告，「专业卸载」入口标灰，其余功能不受影响。
 - `icon.ico` 缺失时自动沿用 `winsweep.ico`，再缺失才用内置扫帚图标；
   `--force-icon` 强制重建。
 - 安装脚本 `installer/WinSweep.iss` 可作为其它项目的模板：改 `MyAppName` / `MyAppId` / `MyAppExeName`
-  与 `[Files]` 的来源目录即可；卸载时会询问是否保留 `data/` 偏好，并自动清除 BCU 便携配置。
+  与 `[Files]` 的来源目录即可；卸载时会询问是否保留 `data/` 偏好，并自动清除 BCU 便携配置与
+  Uninstall Tool 的便携数据目录。
 
 ---
 

@@ -22,8 +22,12 @@ resources/ 分发说明
     BCUninstaller/      v3.6 内置批量卸载工具（本地编译产物，36MB，
                         需目标机安装 .NET 8 Desktop 运行时；缺失时主程序
                         仍可运行，仅该卡片入口标灰提示）
-    若本机没有 resources/BCUninstaller/（如源码分发后未编译），打包自动
-    跳过并给出提示，不会导致安装包失败。
+    UninstallTool/      v3.7 内置专业卸载工具（CrystalIDEA 便携版，约 7MB，
+                        PortableApps 结构：App/UninstallTool/ + Data/）。
+                        商业软件，随包分发或商用前请自行确认授权；缺失时
+                        仅该卡片入口标灰提示，不影响其余功能。
+    若本机没有上述可选目录（如源码分发后未随附），打包自动跳过并给出
+    提示，不会导致安装包失败。
 
 用法
     python build.py                    全流程：图标 → exe → 安装包
@@ -33,7 +37,7 @@ resources/ 分发说明
     python build.py --icon-only        只生成 icon.ico
     python build.py --clean            只清理 build/ 与 dist/
     python build.py --open             完成后打开产物目录
-    python build.py --version 3.6      覆盖版本号（默认从 WinSweep.pyw 读取）
+    python build.py --version 3.7      覆盖版本号（默认从 WinSweep.pyw 读取）
     python build.py --iscc <路径>      指定 ISCC.exe（默认自动查找）
     python build.py --upx <目录>       使用 UPX 压缩（可能增加杀软误报，默认关闭）
 """
@@ -55,9 +59,11 @@ PROJECT_DIR = Path(__file__).resolve().parent
 APP_SCRIPT = PROJECT_DIR / "WinSweep.pyw"          # 主程序（唯一入口，元数据来源）
 ICON_FILE = PROJECT_DIR / "icon.ico"               # 由本脚本生成 / 可自行替换
 ICON_FALLBACK = PROJECT_DIR / "winsweep.ico"       # 备用图标（用户提供的自定义图标）
-RES_DIR = PROJECT_DIR / "resources"                # 运行期资源（Optimization / Win11Debloat / BCUninstaller）
+RES_DIR = PROJECT_DIR / "resources"                # 运行期资源（Optimization / Win11Debloat / BCUninstaller / UninstallTool）
 BCU_DIR = RES_DIR / "BCUninstaller"                # v3.6 内置批量卸载工具（编译产物，36MB）
 BCU_EXE = BCU_DIR / "BCUninstaller.exe"
+UT_DIR = RES_DIR / "UninstallTool"                 # v3.7 内置专业卸载工具（PortableApps 便携结构）
+UT_EXE = UT_DIR / "App" / "UninstallTool" / "UninstallTool.exe"
 README_FILE = PROJECT_DIR / "README.md"            # 「关于」视图的「打开 README」按钮
 LANDING_PAGE = PROJECT_DIR / "index.html"          # 落地页（随包分发，可选）
 PREVIEW_IMAGES = ("preview.png", "preview_toggles.png")  # 落地页引用的本地截图
@@ -497,7 +503,7 @@ def run_pyinstaller(meta, onefile, upx_dir):
     # 这些 import（对 exe 而言是“隐形”的），必须全部显式声明，否则运行时
     # 报 ModuleNotFoundError（曾因缺 glob 导致打包版启动即崩）。
     runtime_stdlib = (
-        "glob", "json", "math", "shutil", "stat", "subprocess",
+        "glob", "json", "math", "re", "shutil", "stat", "subprocess",
         "threading", "time", "ctypes", "winreg", "tempfile", "queue",
     )
 
@@ -599,7 +605,7 @@ def stage_app(onefile, include_landing):
         info(f"+ {name}")
 
     # 3) resources 分项体积报告
-    for sub in ("Optimization", "Win11Debloat", "BCUninstaller"):
+    for sub in ("Optimization", "Win11Debloat", "BCUninstaller", "UninstallTool"):
         sub_staged = STAGE_DIR / "resources" / sub
         if sub_staged.is_dir():
             info(f"  └ resources/{sub}/（{human_size(sub_staged)}）")
@@ -755,19 +761,28 @@ def check_sources(onefile):
     if not RES_DIR.is_dir():
         fail(f"缺少资源目录：{RES_DIR}")
     ok(f"资源目录 resources/（{human_size(RES_DIR)}）")
-    # 各资源子目录分项报告
-    for sub in ("Optimization", "Win11Debloat", "BCUninstaller"):
+    # 各资源子目录分项报告（BCU / UninstallTool 为可选内置组件，缺失仅标灰）
+    optional_res = {
+        "BCUninstaller": ("缺少 resources/BCUninstaller/ ——「批量卸载」入口将标灰提示",
+                          "  获取方式见 archive/BCUninstaller-src（源码含编译补丁，dotnet publish 重新编译）"),
+        "UninstallTool": ("缺少 resources/UninstallTool/ ——「专业卸载」入口将标灰提示",
+                          "  获取方式：CrystalIDEA Uninstall Tool 便携版，保持 "
+                          "App/UninstallTool/ 与 Data/ 目录结构即可"),
+    }
+    for sub in ("Optimization", "Win11Debloat", "BCUninstaller", "UninstallTool"):
         sub_path = RES_DIR / sub
         if sub_path.is_dir():
             ok(f"  resources/{sub}/（{human_size(sub_path)}）")
-        elif sub == "BCUninstaller":
-            warn("缺少 resources/BCUninstaller/ ——「批量卸载」入口将标灰提示")
-            info("  获取方式见 archive/BCUninstaller-src（源码含编译补丁，dotnet publish 重新编译）")
+        elif sub in optional_res:
+            warn(optional_res[sub][0])
+            info(optional_res[sub][1])
         else:
             fail(f"缺少必需资源目录：{sub_path}")
-    # BCU 运行时依赖提示（不阻断打包，仅提醒分发场景）
+    # 运行时依赖与授权提示（不阻断打包，仅提醒分发场景）
     if BCU_EXE.is_file():
         info("BCUninstaller 为框架依赖版，目标机需安装 .NET 8 Desktop 运行时")
+    if UT_EXE.is_file():
+        info("Uninstall Tool 为 CrystalIDEA 商业软件，再分发 / 商用请确认授权（见 README）")
     if not README_FILE.is_file():
         warn("缺少 README.md ——「关于」视图的「打开 README」将不可用")
     if not CHINESE_ISL.is_file():

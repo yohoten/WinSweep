@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>WinSweep — Windows 系统垃圾清理与一站式优化工具</title>
-<meta name="description" content="WinSweep 是一款基于 Python 标准库 tkinter 编写的 Windows 系统垃圾清理与一站式优化工具，双击即用、零第三方依赖，集成 Win11Debloat、Winslop 注册表开关、Bulk Crap Uninstaller 批量卸载与 Neon 优化包，覆盖缓存清理、批量卸载、系统精简、性能优化全流程。" />
+<meta name="description" content="WinSweep 是一款基于 Python 标准库 tkinter 编写的 Windows 系统垃圾清理与一站式优化工具，双击即用、零第三方依赖，集成 Win11Debloat、Winslop 注册表开关、Bulk Crap Uninstaller 批量卸载、Uninstall Tool 专业卸载与 Neon 优化包，覆盖缓存清理、软件卸载、系统精简、性能优化全流程。" />
 <meta name="keywords" content="WinSweep, Windows 清理, 系统优化, 垃圾清理, Win11Debloat, Winslop, Neon 优化, 开源" />
 <meta property="og:title" content="WinSweep — Windows 系统垃圾清理与一站式优化工具" />
 <meta property="og:description" content="双击即用、零第三方依赖的 Windows 清理与优化工具，集成缓存清理、系统精简、性能优化全流程。" />
@@ -376,9 +376,9 @@
 <!-- Hero -->
 <div class="container" id="top">
   <div class="hero">
-    <span class="badge"><span class="dot"></span> v3.6 最新版本 · 开源免费</span>
+    <span class="badge"><span class="dot"></span> v3.7 最新版本 · 开源免费</span>
     <h1>为你的 Windows<br/>做一次<span class="grad">彻底大扫除</span></h1>
-    <p class="sub">WinSweep 是一款基于 Python 标准库 <strong>tkinter</strong> 编写的系统垃圾清理与一站式优化工具——<strong>双击即用，零第三方依赖</strong>。集成 Win11Debloat、Winslop 注册表开关、<strong>Bulk Crap Uninstaller 批量卸载</strong>与 Neon 优化包，覆盖缓存清理、批量卸载、系统精简、性能优化全流程。</p>
+    <p class="sub">WinSweep 是一款基于 Python 标准库 <strong>tkinter</strong> 编写的系统垃圾清理与一站式优化工具——<strong>双击即用，零第三方依赖</strong>。集成 Win11Debloat、Winslop 注册表开关、<strong>Bulk Crap Uninstaller 批量卸载</strong>、<strong>Uninstall Tool 专业卸载</strong>与 Neon 优化包，覆盖缓存清理、软件卸载、系统精简、性能优化全流程。</p>
     <div class="cta">
       <a class="btn btn-primary" href="#download">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
@@ -399,7 +399,7 @@
     <div class="stats">
       <div class="stat"><b>14</b><span>清理项</span></div>
       <div class="stat"><b>52</b><span>注册表开关</span></div>
-      <div class="stat"><b>🧹</b><span>批量卸载</span></div>
+      <div class="stat"><b>2</b><span>卸载工具</span></div>
       <div class="stat"><b>10</b><span>系统优化项</span></div>
       <div class="stat"><b>7</b><span>功能视图</span></div>
       <div class="stat"><b>0</b><span>第三方依赖</span></div>
@@ -671,7 +671,7 @@
       <div class="step">
         <div class="n">3</div>
         <h4>按需使用</h4>
-        <p>日常选「⚡ 快速清理」，定期选「🚀 深度清理」，卸载软件用「🗑 批量卸载」，精简系统用「📦 预装清理」与「🔘 开关精简」，调优用「🧰 系统优化」。</p>
+        <p>日常选「⚡ 快速清理」，定期选「🚀 深度清理」，卸载软件用「🗑 批量卸载」或「🧰 专业卸载」，精简系统用「📦 预装清理」与「🔘 开关精简」，调优用「⚙ 系统优化」。</p>
       </div>
     </div>
 
@@ -701,7 +701,11 @@
     </div>
     <div class="timeline">
       <div class="tl-item">
-        <span class="v">v3.6</span><span class="t">当前版本 · 内置 Bulk Crap Uninstaller</span>
+        <span class="v">v3.7</span><span class="t">当前版本 · 内置 Uninstall Tool 专业卸载</span>
+        <p>内置 Uninstall Tool（CrystalIDEA）便携版，「系统工具」新增启动入口：强制移除顽固软件、扫描卸载残留、安装监视；启动带进程轮询与失败原因回显，关闭后自动刷新磁盘并记录时间；界面语言一键切换（English / 简体中文），配置改写前自动备份。</p>
+      </div>
+      <div class="tl-item">
+        <span class="v">v3.6</span><span class="t">内置 Bulk Crap Uninstaller</span>
         <p>内置开源批量卸载工具 BCU（Apache-2.0，源码本地编译），「系统工具」新增启动入口；界面自带简体中文，需要 .NET 8 Desktop 运行时。</p>
       </div>
       <div class="tl-item">
@@ -760,7 +764,7 @@
       WinSweep
     </span>
     <p>Windows 系统垃圾清理与一站式优化工具 · 开源免费 · <a href="https://github.com/yohoten/WinSweep" target="_blank" rel="noopener">GitHub 仓库</a></p>
-    <p style="margin-top:6px;">v3.6 · Apache-2.0（BCU）· MIT（Win11Debloat） · 使用即视为同意上述免责声明</p>
+    <p style="margin-top:6px;">v3.7 · Apache-2.0（BCU）· MIT（Win11Debloat）· 商业授权（Uninstall Tool） · 使用即视为同意上述免责声明</p>
   </div>
 </footer>
 
